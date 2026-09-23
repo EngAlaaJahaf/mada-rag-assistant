@@ -508,13 +508,19 @@ def main():
         unregister_hotkey(hwnd, HS_REOPEN)
         g = parse_hotkey(settings.get("hotkey", ""))
         r = parse_hotkey(settings.get("reopen_hotkey", ""))
+        fails = set()
         if g:
             if not register_hotkey(hwnd, HS_GENERATE, g[0], g[1]):
-                _log("تعذر تسجيل الاختصار: " + (settings.get("hotkey", "") or "-"))
+                fails.add(HS_GENERATE)
         if r:
             if not register_hotkey(hwnd, HS_REOPEN, r[0], r[1]):
-                _log("تعذر تسجيل الاختصار: " + (settings.get("reopen_hotkey", "") or "-"))
+                fails.add(HS_REOPEN)
+        st["hk_fail"] = fails
         st["hi"] = (settings.get("hotkey", ""), settings.get("reopen_hotkey", ""))
+        for hid, label in ((HS_GENERATE, settings.get("hotkey", "")), (HS_REOPEN, settings.get("reopen_hotkey", ""))):
+            if hid in fails and hid not in st.get("hk_logged", set()):
+                _log("تعذر تسجيل الاختصار: " + (label or "-"))
+        st["hk_logged"] = fails
 
     def on_generate():
         _log("اختصار التوليد مضغوط")
@@ -522,7 +528,7 @@ def main():
 
     def generate_worker():
         if settings.load():
-            apply_hotkeys()
+            pass  # إعادة تسجيل الاختصارات تتم حصراً في خيط الرسائل (on_refresh) لمنع السباقات
         text = capture_selection()
         if text is None:
             _log("لا يوجد نص محدد في الحافظة")
@@ -549,7 +555,8 @@ def main():
         if settings.load():
             hi = st.get("hi")
             cur = (settings.get("hotkey", ""), settings.get("reopen_hotkey", ""))
-            if hi != cur:
+            # أعد محاولة تسجيل أي اختصار فشل سابقاً (حتى لو لم يتغير النص)
+            if hi != cur or st.get("hk_fail"):
                 apply_hotkeys()
             if settings.get("enabled", True) is False:
                 _log("تم إيقاف البوب-أب من الإعدادات")
