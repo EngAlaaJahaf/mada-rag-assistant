@@ -94,37 +94,46 @@ def parse_hotkey(s):
 
 # ── طبقة ويندوز (حافظة + إرسال مفاتيح) ──
 def clip_get_text():
-    if not ctypes.windll.user32.OpenClipboard(None):
-        return None
     try:
-        if not ctypes.windll.user32.IsClipboardFormatAvailable(CF_UNICODETEXT):
+        if not ctypes.windll.user32.OpenClipboard(None):
             return None
-        h = ctypes.windll.user32.GetClipboardData(CF_UNICODETEXT)
-        if not h:
-            return None
-        ptr = ctypes.windll.kernel32.GlobalLock(h)
         try:
-            return ctypes.wstring_at(ptr)
+            if not ctypes.windll.user32.IsClipboardFormatAvailable(CF_UNICODETEXT):
+                return None
+            h = ctypes.windll.user32.GetClipboardData(CF_UNICODETEXT)
+            if not h:
+                return None
+            ptr = ctypes.windll.kernel32.GlobalLock(h)
+            if not ptr:
+                return None
+            try:
+                return ctypes.wstring_at(ptr)
+            finally:
+                ctypes.windll.kernel32.GlobalUnlock(h)
         finally:
-            ctypes.windll.kernel32.GlobalUnlock(h)
-    finally:
-        ctypes.windll.user32.CloseClipboard()
+            ctypes.windll.user32.CloseClipboard()
+    except Exception:
+        return None
 
 
 def clip_set_text(t):
     payload = (t or "").encode("utf-16-le") + b"\x00\x00"
     h = ctypes.windll.kernel32.GlobalAlloc(0x0042, len(payload))
     if not h:
-        return
+        return False
     ptr = ctypes.windll.kernel32.GlobalLock(h)
     ctypes.memmove(ptr, payload, len(payload))
     ctypes.windll.kernel32.GlobalUnlock(h)
-    ctypes.windll.user32.OpenClipboard(None)
     try:
-        ctypes.windll.user32.EmptyClipboard()
-        ctypes.windll.user32.SetClipboardData(CF_UNICODETEXT, h)
-    finally:
-        ctypes.windll.user32.CloseClipboard()
+        if not ctypes.windll.user32.OpenClipboard(None):
+            return False
+        try:
+            ctypes.windll.user32.EmptyClipboard()
+            return bool(ctypes.windll.user32.SetClipboardData(CF_UNICODETEXT, h))
+        finally:
+            ctypes.windll.user32.CloseClipboard()
+    except Exception:
+        return False
 
 
 def clip_clear():
@@ -527,22 +536,25 @@ def main():
         threading.Thread(target=generate_worker, daemon=True).start()
 
     def generate_worker():
-        if settings.load():
-            pass  # إعادة تسجيل الاختصارات تتم حصراً في خيط الرسائل (on_refresh) لمنع السباقات
-        text = capture_selection()
-        if text is None:
-            _log("لا يوجد نص محدد في الحافظة")
-            q_ui.put(build_toast_dict("لم يتم تحديد أي نص", err=True))
-            return
-        _log("التقط النص: %d حرف" % len(text))
-        answer, err = post_quick(text, settings)
-        if answer:
-            last["answer"] = answer
-            _log("تم التوليد: " + answer[:40])
-            q_ui.put(build_toast_dict(answer))
-        else:
-            _log("فشل الجيل: " + (err or "تعذر توليد الرد")[:60])
-            q_ui.put(build_toast_dict(err or "تعذر توليد الرد", err=True))
+        try:
+            if settings.load():
+                pass  # إعادة تسجيل الاختصارات تتم حصراً في خيط الرسائل (on_refresh) لمنع السباقات
+            text = capture_selection()
+            if text is None:
+                _log("لا يوجد نص محدد في الحافظة")
+                q_ui.put(build_toast_dict("لم يتم تحديد أي نص", err=True))
+                return
+            _log("التقط النص: %d حرف" % len(text))
+            answer, err = post_quick(text, settings)
+            if answer:
+                last["answer"] = answer
+                _log("تم التوليد: " + answer[:40])
+                q_ui.put(build_toast_dict(answer))
+            else:
+                _log("فشل الجيل: " + (err or "تعذر توليد الرد")[:60])
+                q_ui.put(build_toast_dict(err or "تعذر توليد الرد", err=True))
+        except Exception as e:
+            _log("خطأ في التوليد: " + repr(e)[:80])
 
     def on_reopen():
         if last.get("answer"):
