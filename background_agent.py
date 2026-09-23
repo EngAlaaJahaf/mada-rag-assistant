@@ -64,6 +64,9 @@ def _pid_clear():
         pass
 
 
+_q_clip = queue.Queue()
+
+
 # ── دوال نقية قابلة للاختبار ──
 def parse_hotkey(s):
     """يحوّل 'Ctrl+Alt+Space' إلى (mods, vk) أو None عند الفشل."""
@@ -148,6 +151,21 @@ def clip_sequence():
     return ctypes.windll.user32.GetClipboardSequenceNumber()
 
 
+def clip_read_sync(timeout=3.0):
+    """قراءة نص الحافظة عبر خيط Tk (يقرأ صيغ OLE/المؤجّلة التي يعجز عنها GlobalLock).
+    يرجع نصاً أو None."""
+    try:
+        slot = {"ev": threading.Event(), "val": None}
+        _q_clip.put(slot)
+        ok = slot["ev"].wait(timeout)
+        return slot["val"] if ok else None
+    except Exception:
+        try:
+            return clip_get_text()
+        except Exception:
+            return None
+
+
 class _KEYBDINPUT(ctypes.Structure):
     _fields_ = [("wVk", wt.WORD), ("wScan", wt.WORD), ("dwFlags", wt.DWORD),
                 ("time", wt.DWORD), ("dwExtraInfo", ctypes.c_size_t)]
@@ -176,34 +194,70 @@ def _key_event(vk, flags):
 
 
 def send_ctrl_c():
-    arr = (_INPUT * 4)(
-        _key_event(0x11, 0), _key_event(ord("C"), 0),
-        _key_event(ord("C"), 2), _key_event(0x11, 2),
+    return _copy_key_chord(0x43)
+
+
+def _copy_key_chord(vk, extended=False):
+    """Ctrl+VK لحظة (Ctrl+C => 0x43، Ctrl+Insert => 0x2D) عبر SendInput."""
+    ex = (0x1 if extended else 0)
+    inp = (_INPUT * 4)(
+        _key_event(0x11, 0), _key_event(vk, ex),
+        _key_event(vk, ex | 2), _key_event(0x11, 2),
     )
     try:
-        return ctypes.windll.user32.SendInput(4, ctypes.byref(arr), ctypes.sizeof(_INPUT))
+        return ctypes.windll.user32.SendInput(4, ctypes.byref(inp), ctypes.sizeof(_INPUT))
     except Exception:
         return 0
 
 
 def capture_selection():
-    """نسخ آمن: Ctrl+C للنافذة النشطة + قراءة + استعادة الحافظة."""
-    before = clip_get_text()
-    has_before = before is not None
+    """نسخ التحديد بأمان: Ctrl+C (ثم Ctrl+Insert احتياطاً) مع قراءة الحافظة.
+    مهم: معظم التطبيقات (متصفح/مفكرة) تستخدم «التصيير المؤجّل» — يتغير الرقم التسلسلي
+    للمحفظة فقط عند القراءة الفعلية، لذلك نعتمد على القراءة نفسها لتفعيل التقديم.
+    عند النجاح يبقى النص المحدد في الحافظة (سلوك QuickTranslate)، وعند الفشل تُستعاد الحافظة القديمة."""
+    before = clip_read_sync()
     seq0 = clip_sequence()
-    send_ctrl_c()
-    deadline = time.time() + 1.0
+
+    def _read_new():
+        t = clip_read_sync()
+        if t and t.strip() and (t != before or clip_sequence() != seq0):
+            return t.strip()
+        return None
+
+    sent = _copy_key_chord(0x43)  # Ctrl+C
+    _log("حقن Ctrl+C: %d" % sent)
     selected = None
+    deadline = time.time() + 1.2
     while time.time() < deadline:
-        if clip_sequence() != seq0:
+        selected = _read_new()
+        if selected is not None:
             break
-        time.sleep(0.01)
-    selected = clip_get_text()
-    if has_before:
-        clip_set_text(before)
-    else:
-        clip_clear()
-    return selected if (selected and selected.strip()) else None
+        # القراءة تفرض التقديم على المالك (Delayed Rendering) — ثم نعيد المحاولة
+        clip_read_sync()
+        selected = _read_new()
+        if selected is not None:
+            break
+        time.sleep(0.05)
+    if selected is None:
+        sent2 = _copy_key_chord(0x2D, extended=True)  # Ctrl+Insert احتياط
+        _log("متابعة بـ Ctrl+Insert: %d" % sent2)
+        deadline = time.time() + 1.0
+        while time.time() < deadline:
+            selected = _read_new()
+            if selected is not None:
+                break
+            clip_read_sync()
+            selected = _read_new()
+            if selected is not None:
+                break
+            time.sleep(0.05)
+    if selected is None:
+        _log("تعذر نسخ التحديد — استعادة الحافظة")
+        if before is not None:
+            clip_set_text(before)
+        return None
+    _log("التقط النص: %d حرف" % len(selected))
+    return selected
 
 
 # ── مدير الإعدادات (قراءة من /api/bg مع نسخة محلية) ──
@@ -397,6 +451,15 @@ class TkLoop:
                     lambda: None,
                 )
                 _log("عرض التوست: " + (item.get("text") or "")[:40])
+        try:
+            slot = _q_clip.get_nowait()
+            try:
+                slot["val"] = self.root.clipboard_get()
+            except Exception:
+                slot["val"] = None
+            slot["ev"].set()
+        except queue.Empty:
+            pass
         self.root.after(60, self._poll)
 
 
