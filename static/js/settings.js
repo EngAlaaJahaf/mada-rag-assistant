@@ -326,7 +326,149 @@ function qpPost(payload, okMsg) {
   });
 }
 
+/* ================= مسجّل الاختصارات التفاعلي (Interactive Hotkey Recorder) ================= */
+function bindHotkeyRecorder(input) {
+  if (!input || input._hotkeyBound) return;
+  input._hotkeyBound = true;
+  input.classList.add('st-hotkey-input');
+
+  var SPECIAL_MAP = {
+    'Space': 'Space',
+    'Enter': 'Enter',
+    'Tab': 'Tab',
+    'Backspace': 'Back',
+    'Delete': 'Delete',
+    'Insert': 'Insert',
+    'Escape': 'Esc',
+    'Home': 'Home',
+    'End': 'End',
+    'PageUp': 'PageUp',
+    'PageDown': 'PageDown',
+    'ArrowUp': 'Up',
+    'ArrowDown': 'Down',
+    'ArrowLeft': 'Left',
+    'ArrowRight': 'Right'
+  };
+
+  input.dataset.placeholderDefault = input.placeholder || '';
+
+  function startRecord() {
+    input._recording = true;
+    input._originalVal = input.value;
+    input.classList.add('is-recording');
+    input.placeholder = 'اضغط على المفاتيح معاً...';
+  }
+
+  function stopRecord(restoreIfEmpty) {
+    if (!input._recording) return;
+    input._recording = false;
+    input.classList.remove('is-recording');
+    if (restoreIfEmpty && !input.value.trim()) {
+      input.value = input._originalVal || '';
+    }
+    input.placeholder = input.dataset.placeholderDefault || 'Ctrl+Alt+Space';
+    if (typeof qpHotkeyWarning === 'function') {
+      qpHotkeyWarning(input.value);
+    }
+  }
+
+  input.addEventListener('focus', function () {
+    startRecord();
+  });
+
+  input.addEventListener('click', function () {
+    startRecord();
+  });
+
+  input.addEventListener('blur', function () {
+    if (input.value.endsWith('+...') || input.value.endsWith('+')) {
+      input.value = input._originalVal || '';
+    }
+    stopRecord(true);
+  });
+
+  input.addEventListener('keydown', function (e) {
+    if (!input._recording) {
+      startRecord();
+    }
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    // إلغاء التسجيل بمفتاح Esc المفرد
+    if (e.key === 'Escape' && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
+      input.value = input._originalVal || '';
+      stopRecord(false);
+      input.blur();
+      return;
+    }
+
+    // تفريغ الحقل بمفتاح Backspace أو Delete المفرد
+    if ((e.key === 'Backspace' || e.key === 'Delete') && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
+      input.value = '';
+      stopRecord(false);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      input.blur();
+      return;
+    }
+
+    var isModifierOnly = (
+      e.key === 'Control' || e.key === 'Alt' || e.key === 'Shift' || e.key === 'Meta'
+    );
+
+    var parts = [];
+    if (e.ctrlKey) parts.push('Ctrl');
+    if (e.altKey) parts.push('Alt');
+    if (e.shiftKey) parts.push('Shift');
+    if (e.metaKey) parts.push('Win');
+
+    if (isModifierOnly) {
+      input.value = parts.length ? (parts.join('+') + '+...') : '';
+      return;
+    }
+
+    // استخراج المفتاح الرئيسي غير المعدل
+    var keyName = null;
+
+    if (e.code === 'Space' || e.key === ' ' || e.key === 'Space') {
+      keyName = 'Space';
+    } else if (e.code && e.code.indexOf('Key') === 0 && e.code.length === 4) {
+      // المفتاح الفيزيائي بالحروف اللاتينية حتى لو كانت لوحة المفاتيح عربية
+      keyName = e.code.slice(3).toUpperCase();
+    } else if (e.code && e.code.indexOf('Digit') === 0) {
+      keyName = e.code.slice(5);
+    } else if (e.code && e.code.indexOf('Numpad') === 0 && e.code.length === 7 && !isNaN(e.code.slice(6))) {
+      keyName = e.code.slice(6);
+    } else if (e.code && /^F([1-9]|1[0-9]|2[0-4])$/i.test(e.code)) {
+      keyName = e.code.toUpperCase();
+    } else if (SPECIAL_MAP[e.key] || SPECIAL_MAP[e.code]) {
+      keyName = SPECIAL_MAP[e.key] || SPECIAL_MAP[e.code];
+    } else if (e.key && e.key.length === 1 && /^[a-zA-Z0-9]$/.test(e.key)) {
+      keyName = e.key.toUpperCase();
+    }
+
+    if (!keyName) return;
+
+    parts.push(keyName);
+    var finalShortcut = parts.join('+');
+
+    input.value = finalShortcut;
+    stopRecord(false);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    input.blur();
+  });
+}
+
+function initHotkeyRecorders() {
+  document.querySelectorAll('input[data-hotkey="true"], .st-hotkey-input').forEach(function (inp) {
+    bindHotkeyRecorder(inp);
+  });
+}
+
 function renderQuickPopupSettings() {
+  initHotkeyRecorders();
   if (!_qpBound) {
     _qpBound = true;
     var swEn = $('cfg-qp-enabled');
@@ -339,7 +481,14 @@ function renderQuickPopupSettings() {
       qpPost({ saveReplies: swSv.classList.contains('active') });
     });
     var hk = $('cfg-qp-hotkey');
-    if (hk) hk.addEventListener('input', function () { qpHotkeyWarning(hk.value); });
+    if (hk) {
+      bindHotkeyRecorder(hk);
+      hk.addEventListener('input', function () { qpHotkeyWarning(hk.value); });
+    }
+    var rk = $('cfg-qp-reopen');
+    if (rk) {
+      bindHotkeyRecorder(rk);
+    }
     var btnSave = $('btn-save-quickpopup');
     if (btnSave) btnSave.addEventListener('click', function () {
       var payload = {

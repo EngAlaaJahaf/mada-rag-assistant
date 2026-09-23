@@ -886,6 +886,7 @@ async function init() {
   initTempChatUI();
   initDataControls();
   initProjectsWorkspaceAndHubEvents();
+  if (typeof initHotkeyRecorders === 'function') initHotkeyRecorders();
 
   updateTempUI();
   bindEvents();

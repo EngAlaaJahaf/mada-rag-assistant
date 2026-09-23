@@ -268,6 +268,24 @@
   margin:2px 0 10px;padding:10px 14px;border-radius:10px;
   background:#fff7e8;border:1px solid #f0d39a;color:#9a6b00;font-size:12.5px;line-height:1.7;
 }
+
+/* ===== مسجل الاختصارات التفاعلي ===== */
+.st-hotkey-input {
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  font-family: var(--font-mono, "Cascadia Mono", Consolas, monospace);
+  font-weight: 600;
+  transition: all 0.18s ease;
+}
+.st-hotkey-input:hover {
+  border-color: var(--accent);
+}
+.st-hotkey-input.is-recording {
+  border-color: var(--accent) !important;
+  background: var(--panel-hover) !important;
+  color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.22);
+}
 @media (max-width:720px){
   .mem-form-grid,.mem-item-fields{grid-template-columns:1fr}
   .mem-preview{font-size:11px}
