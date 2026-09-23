@@ -30,6 +30,14 @@ function hexToRgba(hex, a) {
   return 'rgba(' + (num >> 16) + ',' + ((num >> 8) & 255) + ',' + (num & 255) + ',' + a + ')';
 }
 
+function jumpToChatView() {
+  // أي إجراء يفتح محادثة يجب أن يُخرج من عرض المشروعات أولاً، وإلا يبقى
+  // المركز مخفياً (centerHidden) ويعلق الرابط عند /projects
+  if (currentView !== 'chat') {
+    navigateTo('chat');
+  }
+}
+
 function navigateTo(view, id, pushState) {
   currentView = view || 'chat';
   activeProjectId = (currentView === 'project' ? id : null);
@@ -75,6 +83,12 @@ function navigateTo(view, id, pushState) {
   } else {
     var cur = currentChatId ? getChat(currentChatId) : null;
     document.title = (cur && cur.title) ? (cur.title + ' - مذكّرتي شات') : 'مذكّرتي شات';
+  }
+}
+
+function ensureChatView() {
+  if (typeof currentView === 'undefined' || currentView !== 'chat') {
+    navigateTo('chat');
   }
 }
 

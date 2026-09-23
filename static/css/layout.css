@@ -91,7 +91,7 @@ body:not(.is-empty) #hero-title-box{display:none}
 body:not(.is-empty) #hero-actions-box{display:none}
 body:not(.is-empty) #msgs{
   flex:1;overflow-y:auto;display:block;padding:8px 0 16px;
-  scroll-behavior:smooth;position:relative;
+  position:relative;
 }
 body:not(.is-empty) #composer-container{
   width:100%;padding:0 16px 16px;

@@ -236,6 +236,8 @@ function bindEvents() {
         chats = [];
         saveChats();
         currentChatId = null;
+        saveActiveChatId(null);
+        syncUrlChatId(null);
         renderSidebar();
         newChat();
         closeAppModal('modal-settings');
@@ -337,6 +339,8 @@ function bindEvents() {
         chats = [];
         saveChats();
         currentChatId = null;
+        saveActiveChatId(null);
+        syncUrlChatId(null);
         renderSidebar();
         newChat();
         closeAppModal('modal-settings');
@@ -883,35 +887,45 @@ async function init() {
   initDataControls();
   initProjectsWorkspaceAndHubEvents();
 
-  updateModePill();
   updateTempUI();
-  renderEmpty(true);
-  renderSidebar();
-  updateSendDisabled();
   bindEvents();
   loadServerFiles();
 
+  var targetChat = null;
   if (tempActive && tempChat) {
-    currentChatId = tempChat.id;
-    if (tempChat.messages && tempChat.messages.length) {
-      renderChatMessages(tempChat);
+    targetChat = tempChat;
+  } else {
+    var urlParams = new URLSearchParams(window.location.search);
+    var targetId = urlParams.get('c') || urlParams.get('chat') || getSavedActiveChatId();
+    if (targetId && targetId !== 'new') {
+      targetChat = getChat(targetId);
+    }
+    if (!targetChat && chats.length && targetId !== 'new') {
+      targetChat = chats[0];
+    }
+  }
+
+  if (targetChat) {
+    currentChatId = targetChat.id;
+    currentMode = targetChat.mode;
+    saveActiveChatId(currentChatId);
+    syncUrlChatId(currentChatId);
+    updateModePill();
+    if (targetChat.messages && targetChat.messages.length) {
+      renderChatMessages(targetChat);
     } else {
       renderEmpty(true);
     }
-  } else if (chats.length) {
-    currentChatId = chats[0].id;
-    var c = getChat(currentChatId);
-    if (c) {
-      currentMode = c.mode;
-      updateModePill();
-      if (c.messages.length) {
-        renderChatMessages(c);
-      } else {
-        renderEmpty(true);
-      }
-      renderSidebar();
-    }
+  } else {
+    currentChatId = null;
+    saveActiveChatId('new');
+    syncUrlChatId(null);
+    updateModePill();
+    renderEmpty(true);
   }
+
+  renderSidebar();
+  updateSendDisabled();
 
   routeCurrentUrl();
   resumePendingGeneration();

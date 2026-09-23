@@ -360,6 +360,8 @@ function send(text, chatId) {
     updateModePill();
   }
   currentChatId = chat.id;
+  saveActiveChatId(chat.id);
+  syncUrlChatId(chat.id);
   if (!chat.title) chat.title = t.slice(0, 42);
   chat.messages.push({ role: 'user', content: t });
 
@@ -384,6 +386,8 @@ function sendChip(text) {
     chat = makeChat(currentMode);
     chats.unshift(chat);
     currentChatId = chat.id;
+    saveActiveChatId(chat.id);
+    syncUrlChatId(chat.id);
   }
   send(text, chat.id);
 }
@@ -391,12 +395,15 @@ function sendChip(text) {
 /* ================= Conversation actions ================= */
 function loadChat(id) {
   if (streaming) return;
+  jumpToChatView(); // أياً كان العرض الحالي، فتح محادثة يجب أن يظهرها دائماً
   if (tempActive) {
     clearTempChat();
   }
   var chat = getChat(id);
   if (!chat) return;
   currentChatId = id;
+  saveActiveChatId(id);
+  syncUrlChatId(id);
   currentMode = chat.mode;
   updateModePill();
   if (chat.messages.length === 0) {
@@ -421,6 +428,8 @@ function deleteChat(id) {
   serverDeleteChat(id);
   if (currentChatId === id) {
     currentChatId = chats.length ? chats[0].id : null;
+    saveActiveChatId(currentChatId);
+    syncUrlChatId(currentChatId);
     if (currentChatId) {
       var c = getChat(currentChatId);
       currentMode = c.mode;

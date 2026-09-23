@@ -72,7 +72,11 @@ function renderChatMessages(chat) {
     if (ms[i].role === 'user') renderUserMsg(ms[i].content, i);
     else renderAsstMsg(ms[i].content, i);
   }
+  msgsEl.style.scrollBehavior = 'auto';
   msgsEl.scrollTop = msgsEl.scrollHeight;
+  requestAnimationFrame(function () {
+    if (msgsEl) msgsEl.scrollTop = msgsEl.scrollHeight;
+  });
   updateMinimap();
   try { if (window.attachFixButtons) window.attachFixButtons(); } catch (e) {}
 }

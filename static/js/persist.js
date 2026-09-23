@@ -39,6 +39,8 @@ async function resumePendingGeneration() {
     if (!chat) return;
     /* حوّل الواجهة إلى المحادثة الجارية */
     currentChatId = cid;
+    saveActiveChatId(cid);
+    syncUrlChatId(cid);
     currentMode = chat.mode;
     updateModePill();
     /* أزل أي رد مساعد جزئي سابق من العرض والذاكرة: البثّ المعاد سيعيد توليده كاملاً */

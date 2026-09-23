@@ -13,12 +13,16 @@ function newChat(projectId) {
     renderSidebar();
     taEl.value = '';
     updateSendDisabled();
+    saveActiveChatId(cur.id);
+    syncUrlChatId(cur.id);
     try { taEl.focus(); } catch (e) {}
     return;
   }
   var c = makeChat(currentMode, projectId);
   chats.unshift(c);
   currentChatId = c.id;
+  saveActiveChatId(c.id);
+  syncUrlChatId(c.id);
   updateModePill();
   renderSidebar();
   renderEmpty(true);
