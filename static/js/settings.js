@@ -100,6 +100,9 @@ function switchSettingsTab(tabKey) {
   if (tabKey === 'memory' && typeof window.renderMemoryManager === 'function') {
     renderMemoryManager();
   }
+  if (tabKey === 'quickpopup') {
+    renderQuickPopupSettings();
+  }
 }
 
 /* ================= Model & Personalization Settings ================= */
@@ -271,5 +274,160 @@ function getTheme() {
     var t = localStorage.getItem(LS_THEME);
     return (t === 'light' || t === 'auto') ? t : 'dark';
   } catch (e) { return 'dark'; }
+}
+
+/* ================= البوب-أب السريع (Quick Popup) ================= */
+var _qpBound = false;
+
+function uiToast(msg, err) {
+  var el = $('app-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'app-toast';
+    el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1d2939;color:#fff;padding:9px 16px;border-radius:999px;font-size:13px;z-index:99999;box-shadow:0 4px 14px rgba(0,0,0,.25);transition:opacity .3s;pointer-events:none;max-width:90vw;';
+    document.body.appendChild(el);
+  }
+  el.style.background = err ? '#a43a32' : '#1d2939';
+  el.textContent = msg;
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  el._t = setTimeout(function () { el.style.opacity = '0'; }, 2600);
+}
+
+function setSwitchState(id, on) {
+  var el = $(id);
+  if (!el) return;
+  el.classList.toggle('active', !!on);
+  el.setAttribute('aria-checked', on ? 'true' : 'false');
+}
+
+function qpHotkeyWarning(val) {
+  var warn = $('qp-warn');
+  if (!warn) return;
+  var s = String(val || '').toLowerCase();
+  var parts = s.split('+').map(function (p) { return p.trim(); }).filter(Boolean);
+  var key = parts.length ? parts[parts.length - 1] : '';
+  var show = (key === 'space');
+  warn.classList.toggle('hidden', !show);
+}
+
+function qpPost(payload, okMsg) {
+  return fetch('/api/bg', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).then(function (r) { return r.json(); }).then(function (d) {
+    if (d && d.ok) { if (okMsg) uiToast(okMsg); return d.settings; }
+    uiToast('تعذر حفظ الإعدادات', true);
+    return null;
+  }).catch(function () {
+    uiToast('الخادم غير متصل', true);
+    return null;
+  });
+}
+
+function renderQuickPopupSettings() {
+  if (!_qpBound) {
+    _qpBound = true;
+    var swEn = $('cfg-qp-enabled');
+    if (swEn) swEn.addEventListener('click', function () {
+      var on = swEn.classList.contains('active');
+      qpPost({ enabled: on }, on ? 'تم تفعيل البوب-أب السريع (سيُطلق خلال ثوانٍ)' : 'تم إيقاف البوب-أب السريع');
+    });
+    var swSv = $('cfg-qp-save');
+    if (swSv) swSv.addEventListener('click', function () {
+      qpPost({ saveReplies: swSv.classList.contains('active') });
+    });
+    var hk = $('cfg-qp-hotkey');
+    if (hk) hk.addEventListener('input', function () { qpHotkeyWarning(hk.value); });
+    var btnSave = $('btn-save-quickpopup');
+    if (btnSave) btnSave.addEventListener('click', function () {
+      var payload = {
+        enabled: $('cfg-qp-enabled') ? $('cfg-qp-enabled').classList.contains('active') : false,
+        hotkey: (hk ? hk.value : '').trim(),
+        reopen_hotkey: $('cfg-qp-reopen') ? $('cfg-qp-reopen').value.trim() : '',
+        length: $('cfg-qp-length') ? $('cfg-qp-length').value : 'short',
+        custom_command: $('cfg-qp-command') ? $('cfg-qp-command').value : '',
+        duration: $('cfg-qp-duration') ? parseInt($('cfg-qp-duration').value, 10) || 3 : 3,
+        position: $('cfg-qp-position') ? $('cfg-qp-position').value : 'bottom-right',
+        color: $('cfg-qp-color') ? $('cfg-qp-color').value : 'dark',
+        size: $('cfg-qp-size') ? $('cfg-qp-size').value : 'medium',
+        saveReplies: $('cfg-qp-save') ? $('cfg-qp-save').classList.contains('active') : false
+      };
+      qpPost(payload, 'تم حفظ وتطبيق إعدادات البوب-أب');
+    });
+  }
+
+  fetch('/api/bg').then(function (r) { return r.json(); }).then(function (d) {
+    var s = (d && d.settings) || {};
+    setSwitchState('cfg-qp-enabled', s.enabled !== false);
+    var hk = $('cfg-qp-hotkey'); if (hk) hk.value = s.hotkey || 'Ctrl+Alt+Space';
+    var rk = $('cfg-qp-reopen'); if (rk) rk.value = s.reopen_hotkey || 'Ctrl+Alt+R';
+    var ln = $('cfg-qp-length'); if (ln) ln.value = s.length || 'short';
+    var cc = $('cfg-qp-command'); if (cc) cc.value = s.custom_command || '';
+    var du = $('cfg-qp-duration'); if (du) du.value = s.duration != null ? s.duration : 3;
+    var po = $('cfg-qp-position'); if (po) po.value = s.position || 'right';
+    var co = $('cfg-qp-color'); if (co) co.value = s.color || 'dark';
+    var sz = $('cfg-qp-size'); if (sz) sz.value = s.size || 'medium';
+    setSwitchState('cfg-qp-save', !!s.saveReplies);
+    qpHotkeyWarning(s.hotkey || '');
+  }).catch(function () {});
+  renderModelLocalUI();
+}
+
+/* ================= النموذج المحلي (مسار + أداء) ================= */
+var _mlBound = false;
+
+function renderModelLocalUI() {
+  if (!_mlBound) {
+    _mlBound = true;
+    function pick(kind, inputId) {
+      fetch('/api/model/pick', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: kind })
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        if (d && d.ok && d.path) {
+          var inp = $(inputId);
+          if (inp) inp.value = d.path;
+          uiToast('تم اختيار الملف');
+        }
+      }).catch(function () { uiToast('يتعذر فتح نافذة الملفات', true); });
+    }
+    var b1 = $('btn-pick-llm-exe');
+    if (b1) b1.addEventListener('click', function () { pick('exe', 'cfg-llm-exe'); });
+    var b2 = $('btn-pick-llm-model');
+    if (b2) b2.addEventListener('click', function () { pick('model', 'cfg-llm-model'); });
+    var bs = $('btn-save-llm-local');
+    if (bs) bs.addEventListener('click', function () {
+      var body = {
+        spec: $('cfg-llm-spec') ? $('cfg-llm-spec').value : 'low',
+        exe: $('cfg-llm-exe') ? $('cfg-llm-exe').value : '',
+        model: $('cfg-llm-model') ? $('cfg-llm-model').value : ''
+      };
+      fetch('/api/model', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        if (d && d.ok) {
+          uiToast(d.restarted ? 'تم الحفظ وإعادة تشغيل النموذج' : 'تم الحفظ');
+          fillModelLocalUI(d.model);
+        } else { uiToast('تعذر حفظ إعدادات النموذج', true); }
+      }).catch(function () { uiToast('الخادم غير متصل', true); });
+    });
+  }
+  fetch('/api/model').then(function (r) { return r.json(); }).then(function (d) {
+    if (d && d.ok) fillModelLocalUI(d.model);
+  }).catch(function () {});
+}
+
+function fillModelLocalUI(m) {
+  if (!m) return;
+  var e = $('cfg-llm-exe'); if (e) e.value = m.exe || '';
+  var g = $('cfg-llm-model'); if (g) g.value = m.model || '';
+  var sp = $('cfg-llm-spec'); if (sp) sp.value = m.spec || 'low';
+  var st = $('cfg-llm-status');
+  if (st) st.textContent = 'spec=' + (m.spec || 'low') + ' | ctx=' + m.ctx + ' | ngl=' + m.ngl + ' | threads=' + m.threads;
 }
 

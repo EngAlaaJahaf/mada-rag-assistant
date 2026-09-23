@@ -5,6 +5,7 @@ __pycache__/
 uploads/
 index_data/
 bg_config.json
+model_config.json
 venv/
 .venv/
 env/

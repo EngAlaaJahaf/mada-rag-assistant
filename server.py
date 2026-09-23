@@ -472,19 +472,146 @@ def apply_memory_terms(text):
 
 
 # ── التوليد المحلي (نموذج Qwen3 عبر llama.cpp على جهازك) ──
-LLM_EXE = r"D:\jan\llamacpp\backends\b9967\win-avx-cuda-cu12.0-x64\build\bin\llama-server.exe"
-LLM_MODEL = r"D:\jan\llamacpp\models\Jan-v3.5-4B-Q4_K_XL\model.gguf"
+# المسارات الافتراضية (يمكن تغييرها من الواجهة وتُحفظ في model_config.json)
+LLM_EXE_DEFAULT = r"D:\jan\llamacpp\backends\b9967\win-avx-cuda-cu12.0-x64\build\bin\llama-server.exe"
+LLM_MODEL_DEFAULT = r"D:\jan\llamacpp\models\Jan-v3.5-4B-Q4_K_XL\model.gguf"
+LLM_EXE = LLM_EXE_DEFAULT
+LLM_MODEL = LLM_MODEL_DEFAULT
 LLM_HOST = "127.0.0.1"
 LLM_PORT = 8080
-LLM_CTX = 8192
-LLM_NGL = 99
 LLM_MAX_TOKENS = 450
+LLM_CTX = 2048
+LLM_NGL = 0
+LLM_THREADS = 0
 
 _gen_lock = threading.Lock()
 _procs = []
+_agent_proc = None
+
+BG_PATH = os.path.join(ROOT, "bg_config.json")
+MODEL_CONFIG_PATH = os.path.join(ROOT, "model_config.json")
+
+DEFAULT_BG = {
+    "enabled": True,
+    "hotkey": "Ctrl+Alt+Space",
+    "reopen_hotkey": "Ctrl+Alt+R",
+    "length": "short",
+    "custom_command": "",
+    "duration": 3,
+    "position": "right",
+    "color": "dark",
+    "size": "medium",
+    "saveReplies": False,
+}
+
+DEFAULT_MODEL = {
+    "spec": "low",
+    "exe": LLM_EXE_DEFAULT,
+    "model": LLM_MODEL_DEFAULT,
+}
+
+BG_BOOLS = ("enabled", "saveReplies")
+BG_CHOICES = {
+    "length": ("short", "medium", "detailed"),
+    "position": ("left", "center", "right"),
+    "color": ("dark", "light"),
+    "size": ("small", "medium", "wide"),
+}
+
+
+def load_bg_config():
+    out = dict(DEFAULT_BG)
+    try:
+        if os.path.isfile(BG_PATH):
+            with open(BG_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                out.update(data)
+    except Exception:
+        pass
+    return out
+
+
+def save_bg_config(cfg):
+    with open(BG_PATH, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=2)
+    return cfg
+
+
+def sanitize_bg(data):
+    if not isinstance(data, dict):
+        return load_bg_config()
+    out = load_bg_config()
+    for k in BG_BOOLS:
+        if k in data:
+            out[k] = bool(data[k])
+    d = data.get("duration")
+    if isinstance(d, (int, float)):
+        out["duration"] = max(1, min(30, int(d)))
+    for k, allowed in BG_CHOICES.items():
+        if k in data and str(data[k]) in allowed:
+            out[k] = str(data[k])
+    for k in ("hotkey", "reopen_hotkey"):
+        v = str(data.get(k) or "").strip()
+        if v and len(v) <= 32 and re.fullmatch(r"[A-Za-z0-9+ ]+", v):
+            out[k] = v
+    cc = str(data.get("custom_command") or "").strip()
+    out["custom_command"] = cc[:1000]
+    return out
+
+
+MODEL_MTOKENS = {"low": 150, "medium": 300, "full": 450}
+SPEC_PARAMS = {
+    "low": {"ctx": 2048, "ngl": 0},
+    "medium": {"ctx": 4096, "ngl": 8},
+    "full": {"ctx": 8192, "ngl": 99},
+}
+
+
+def _resolve_threads(spec):
+    n = os.cpu_count() or 4
+    if spec == "low":
+        return max(2, n // 2)
+    if spec == "medium":
+        return max(2, n - 1)
+    return 8
+
+
+def load_model_config():
+    out = dict(DEFAULT_MODEL)
+    try:
+        if os.path.isfile(MODEL_CONFIG_PATH):
+            with open(MODEL_CONFIG_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                out.update(data)
+    except Exception:
+        pass
+    return out
+
+
+def get_llm_config():
+    """يرجع إعدادات النموذج المحلية الموحّدة مع اشتقاق بارامترات الأداء."""
+    cfg = load_model_config()
+    spec = cfg.get("spec") if cfg.get("spec") in SPEC_PARAMS else "low"
+    p = SPEC_PARAMS[spec]
+    exe = str(cfg.get("exe") or LLM_EXE_DEFAULT).strip() or LLM_EXE_DEFAULT
+    model = str(cfg.get("model") or LLM_MODEL_DEFAULT).strip() or LLM_MODEL_DEFAULT
+    return {
+        "spec": spec,
+        "exe": exe,
+        "model": model,
+        "host": LLM_HOST,
+        "port": LLM_PORT,
+        "ctx": int(cfg.get("ctx") or p["ctx"]),
+        "ngl": int(cfg.get("ngl") if cfg.get("ngl") is not None else p["ngl"]),
+        "threads": int(cfg.get("threads") or _resolve_threads(spec)),
+        "max_tokens": MODEL_MTOKENS.get(spec, 150),
+    }
 
 
 def _cleanup_childs():
+    stop_background_agent()
     for p in list(_procs):
         try:
             if p and p.poll() is None:
@@ -497,7 +624,8 @@ atexit.register(_cleanup_childs)
 
 
 def generation_available():
-    return os.path.isfile(LLM_EXE) and os.path.isfile(LLM_MODEL)
+    c = get_llm_config()
+    return os.path.isfile(c["exe"]) and os.path.isfile(c["model"])
 
 
 def _llm_alive():
@@ -508,20 +636,31 @@ def _llm_alive():
         return False
 
 
+def stop_llm():
+    for p in list(_procs):
+        try:
+            if p and p.poll() is None:
+                p.terminate()
+        except Exception:
+            pass
+    _procs.clear()
+
+
 def ensure_llm():
     if _llm_alive():
         return True
     if not generation_available():
         return False
+    c = get_llm_config()
     with _gen_lock:
         if _llm_alive():
             return True
         try:
             proc = subprocess.Popen(
-                [LLM_EXE, "-m", LLM_MODEL,
+                [c["exe"], "-m", c["model"],
                  "--host", LLM_HOST, "--port", str(LLM_PORT),
-                 "--ctx-size", str(LLM_CTX), "-ngl", str(LLM_NGL), "-t", "8"],
-                cwd=os.path.dirname(LLM_EXE),
+                 "--ctx-size", str(c["ctx"]), "-ngl", str(c["ngl"]), "-t", str(c["threads"])],
+                cwd=os.path.dirname(c["exe"]) or None,
                 creationflags=subprocess.CREATE_NO_WINDOW,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
@@ -600,6 +739,191 @@ def _ensure_llm_ready():
             return True
         time.sleep(0.5)
     return _llm_alive()
+
+
+# ── البوب-أب السريع (Quick Popup): توليد موجز + محادثة «سريع» ──
+QUICK_PROMPTS = {
+    "short": "أجب بإجابة صحيحة وموجزة جداً بالعربية في جملة أو جملتين فقط.",
+    "medium": "أجب بإجابة صحيحة وواضحة بالعربية في فقرة قصيرة من جملتين إلى ثلاث جمل.",
+    "detailed": "أجب بإجابة صحيحة ومفصلة بالعربية مع الشرح الكافي دون إطالة مفرطة.",
+}
+
+
+def quick_system_prompt():
+    cfg = load_bg_config()
+    cmd = (cfg.get("custom_command") or "").strip()
+    if cmd:
+        return cmd, 300
+    length = cfg.get("length") if cfg.get("length") in QUICK_PROMPTS else "short"
+    return QUICK_PROMPTS[length], {"short": 150, "medium": 300, "detailed": 600}.get(length, 150)
+
+
+def quick_generate(text):
+    q = str(text or "").strip()
+    if not q:
+        return None, "فارغ"
+    try:
+        system, mt = quick_system_prompt()
+        messages = [{"role": "system", "content": system}, {"role": "user", "content": q}]
+        parts = list(stream_llm(messages, temperature=0.2, max_tokens=mt))
+        ans = "".join(parts).strip()
+        if not ans:
+            return None, "النموذج لم يُنتج نصاً"
+        return ans, None
+    except RuntimeError as e:
+        return None, str(e)
+    except Exception as e:
+        return None, "النموذج غير متاح الآن"
+
+
+def quick_store(q, a):
+    now = time.strftime("%Y-%m-%d %H:%M:%S")
+    with DB_LOCK:
+        conn = get_db()
+        r = conn.execute("SELECT * FROM conversations WHERE id = ?", ("quick",)).fetchone()
+        if r:
+            try:
+                msgs = json.loads(r["messages"] or "[]")
+            except Exception:
+                msgs = []
+            msgs.append({"role": "user", "content": q, "ts": now})
+            msgs.append({"role": "assistant", "content": a, "ts": now})
+            conn.execute(
+                "UPDATE conversations SET messages = ?, updated_at = ? WHERE id = ?",
+                (json.dumps(msgs, ensure_ascii=False), now, "quick"),
+            )
+        else:
+            msgs = [{"role": "user", "content": q, "ts": now}, {"role": "assistant", "content": a, "ts": now}]
+            conn.execute(
+                "INSERT INTO conversations (id, mode, title, messages, pinned, archived, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                ("quick", "free", "سريع", json.dumps(msgs, ensure_ascii=False), 0, 0, now, now),
+            )
+        conn.commit()
+        conn.close()
+    return True
+
+
+# ── إدارة إعدادات النموذج + اختيار المسار عبر نافذة ويندوز ──
+def save_model_config(cfg):
+    out = load_model_config()
+    spec = str(cfg.get("spec") or out.get("spec") or "low").strip()
+    if spec not in SPEC_PARAMS:
+        spec = out.get("spec") if out.get("spec") in SPEC_PARAMS else "low"
+    out["spec"] = spec
+    for k in ("exe", "model"):
+        v = str(cfg.get(k) or "").strip()
+        if v:
+            out[k] = v
+    with open(MODEL_CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, indent=2)
+    return out
+
+
+def pick_file_dialog(title, filter_str, initial_dir):
+    """يفتح متصفح ملفات ويندوز الأصلي ويعيد المسار أو None عند الإلغاء."""
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class OPENFILENAMEW(ctypes.Structure):
+            _fields_ = [
+                ("lStructSize", wintypes.DWORD), ("hwndOwner", wintypes.HWND),
+                ("hInstance", wintypes.HINSTANCE), ("lpstrFilter", wintypes.LPCWSTR),
+                ("lpstrCustomFilter", wintypes.LPWSTR), ("nMaxCustFilter", wintypes.DWORD),
+                ("nFilterIndex", wintypes.DWORD), ("lpstrFile", wintypes.LPWSTR),
+                ("nMaxFile", wintypes.DWORD), ("lpstrFileTitle", wintypes.LPWSTR),
+                ("nMaxFileTitle", wintypes.DWORD), ("lpstrInitialDir", wintypes.LPCWSTR),
+                ("lpstrTitle", wintypes.LPCWSTR), ("Flags", wintypes.DWORD),
+                ("nFileOffset", wintypes.WORD), ("nFileExtension", wintypes.WORD),
+                ("lpstrDefExt", wintypes.LPCWSTR), ("lCustData", wintypes.LPARAM),
+                ("lpfnHook", wintypes.LPVOID), ("lpTemplateName", wintypes.LPCWSTR),
+                ("pvReserved", wintypes.LPVOID), ("dwReserved", wintypes.DWORD),
+                ("FlagsEx", wintypes.DWORD),
+            ]
+
+        ofn = OPENFILENAMEW()
+        buf = ctypes.create_unicode_buffer(4096)
+        ofn.lStructSize = ctypes.sizeof(OPENFILENAMEW)
+        ofn.lpstrFilter = filter_str
+        ofn.lpstrFile = buf
+        ofn.nMaxFile = 4096
+        ofn.lpstrTitle = title
+        ofn.lpstrInitialDir = initial_dir or None
+        ofn.Flags = 0x00001008  # OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST
+        ok = ctypes.windll.comdlg32.GetOpenFileNameW(ctypes.byref(ofn))
+        if ok:
+            return ofn.lpstrFile or None
+        return None
+    except Exception:
+        return None
+
+
+def pick_model_file(kind):
+    c = get_llm_config()
+    if kind == "exe":
+        title = "اختر ملف llama-server.exe"
+        flt = "برنامج النموذج (*.exe)\0*.exe\0جميع الملفات (*.*)\0*.*\0"
+        cur = c["exe"]
+    else:
+        title = "اختر ملف النموذج (.gguf)"
+        flt = "ملف النموذج (*.gguf)\0*.gguf\0جميع الملفات (*.*)\0*.*\0"
+        cur = c["model"]
+    return pick_file_dialog(title, flt, os.path.dirname(cur) if cur else None)
+
+
+# ── المشرف الخلفي (الوكيل الصامت) + خيط الحراسة ──
+def _kill_stale_agents():
+    """يضمن مثيلاً واحداً فقط من الوكيل مهما تعددت إعادة التشغيل."""
+    try:
+        subprocess.run(
+            'powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \'Name like \\\"pythonw%\\\"\' | Where-Object { $_.CommandLine -like \\\"*background_agent.py*\\\" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"',
+            shell=True, capture_output=True, timeout=15,
+        )
+    except Exception:
+        pass
+
+
+def start_background_agent():
+    global _agent_proc
+    cfg = load_bg_config()
+    if not cfg.get("enabled", True):
+        return
+    _kill_stale_agents()
+    if _agent_proc is not None and _agent_proc.poll() is None:
+        return
+    script = os.path.join(ROOT, "background_agent.py")
+    if not os.path.isfile(script):
+        return
+    pyw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+    interp = pyw if os.path.isfile(pyw) else sys.executable
+    try:
+        _agent_proc = subprocess.Popen(
+            [interp, script], cwd=ROOT, creationflags=subprocess.CREATE_NO_WINDOW
+        )
+    except Exception:
+        _agent_proc = None
+
+
+def stop_background_agent():
+    global _agent_proc
+    if _agent_proc is not None:
+        try:
+            if _agent_proc.poll() is None:
+                _agent_proc.terminate()
+        except Exception:
+            pass
+        _agent_proc = None
+
+
+def _watchdog_loop():
+    while True:
+        time.sleep(5)
+        cfg = load_bg_config()
+        if not cfg.get("enabled", True):
+            continue
+        if _agent_proc is None or _agent_proc.poll() is not None:
+            start_background_agent()
 
 
 def stream_llm(messages, temperature=0.6, max_tokens=600, endpoint=None, model=None, api_key=None):
@@ -1299,6 +1623,10 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"ok": True, "generations": active})
         elif u.path == "/api/memory":
             self._json({"ok": True, "rules": list_memory()})
+        elif u.path == "/api/bg":
+            self._json({"ok": True, "settings": load_bg_config()})
+        elif u.path == "/api/model":
+            self._json({"ok": True, "model": get_llm_config()})
         else:
             self._send(404, "text/plain", b"not found")
 
@@ -1341,6 +1669,52 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 new_id = add_memory(kind, subject, wrong, note)
                 self._json({"ok": True, "id": new_id})
+        elif u.path == "/api/bg":
+            try:
+                data = json.loads(body.decode("utf-8") or "{}")
+            except ValueError:
+                data = {}
+            saved = save_bg_config(sanitize_bg(data))
+            self._json({"ok": True, "settings": saved})
+        elif u.path == "/api/model":
+            try:
+                data = json.loads(body.decode("utf-8") or "{}")
+            except ValueError:
+                data = {}
+            before = get_llm_config()
+            saved = save_model_config(data)
+            after = get_llm_config()
+            changed = (before["exe"], before["model"], before["spec"]) != (
+                after["exe"], after["model"], after["spec"])
+            if changed:
+                stop_llm()
+                threading.Thread(target=ensure_llm, daemon=True).start()
+            self._json({"ok": True, "model": after, "restarted": changed})
+        elif u.path == "/api/model/pick":
+            try:
+                data = json.loads(body.decode("utf-8") or "{}")
+            except ValueError:
+                data = {}
+            kind = str(data.get("kind") or "model")
+            path = pick_model_file(kind if kind in ("exe", "model") else "model")
+            self._json({"ok": True, "path": path})
+        elif u.path == "/api/quick":
+            try:
+                data = json.loads(body.decode("utf-8") or "{}")
+            except ValueError:
+                data = {}
+            text = str(data.get("text") or "").strip()
+            if not text:
+                self._json({"ok": False, "error": "نص فارغ"}, 400)
+                return
+            answer, err = quick_generate(text)
+            if answer is None:
+                self._json({"ok": False, "error": err or "تعذر توليد الرد"}, 500)
+                return
+            cfg = load_bg_config()
+            if cfg.get("saveReplies"):
+                quick_store(text, answer)
+            self._json({"ok": True, "answer": answer})
         elif u.path == "/api/generation/stop":
             try:
                 data = json.loads(body.decode("utf-8") or "{}")
@@ -1625,10 +1999,12 @@ def main():
     port = 8787
     srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     trs = "متاحة (نموذجك المحلي إنجليزي-عربي)" if translation_available() else "غير متاحة (عدّل مسار VENV في السيرفر)"
-    gens = "متاح (Qwen3 4B على GPU)" if generation_available() else "غير مثبّت"
+    gens = "متاح (نموذج محلي)" if generation_available() else "غير مثبّت"
     print(f"مذكّرتي تعمل: http://127.0.0.1:{port}")
     print(f"الترجمة المحلية: {trs}")
     print(f"التوليد المحلي: {gens}")
+    threading.Thread(target=_watchdog_loop, daemon=True).start()
+    start_background_agent()
     try:
         import webbrowser
         threading.Timer(0.7, lambda: webbrowser.open(f"http://127.0.0.1:{port}")).start()
@@ -1637,6 +2013,7 @@ def main():
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
+        stop_background_agent()
         print("bye")
 
 

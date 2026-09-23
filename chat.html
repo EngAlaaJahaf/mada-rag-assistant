@@ -773,6 +773,13 @@
               <span class="st-tab-label">الذاكرة والتصحيحات</span>
             </button>
 
+            <button class="st-tab-btn" type="button" role="tab" data-tab="quickpopup" aria-selected="false" id="st-tab-trigger-quickpopup">
+              <span class="st-tab-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              </span>
+              <span class="st-tab-label">البوب-أب السريع</span>
+            </button>
+
           </div>
         </div>
 
@@ -1083,6 +1090,57 @@
               </div>
             </div>
 
+            <!-- النموذج المحلي: المسار والأداء -->
+            <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:14px;">
+              <div class="st-row-title">النموذج المحلي (llama.cpp) — أداء وتوافق الجهاز</div>
+              <div class="st-row-desc" style="font-size:12px;line-height:1.6;">حدّد مسار برنامج التشغيل وملف النموذج عبر متصفح الملفات، ومستوى الأداء المراعي لمواصفات جهازك. عند التغيير يُعاد تشغيل النموذج تلقائياً.</div>
+
+              <div class="st-row" style="flex-direction:column;align-items:stretch;">
+                <div class="st-row-info" style="margin-bottom:6px;">
+                  <div class="st-row-title">برنامج التشغيل llama-server.exe</div>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <input type="text" class="st-input" id="cfg-llm-exe" readonly placeholder="اختر llama-server.exe..." style="direction:ltr;text-align:left;flex:1;font-family:var(--font-mono, monospace);">
+                  <button class="adm-btn" type="button" id="btn-pick-llm-exe">اختيار...</button>
+                </div>
+              </div>
+
+              <div class="st-row" style="flex-direction:column;align-items:stretch;">
+                <div class="st-row-info" style="margin-bottom:6px;">
+                  <div class="st-row-title">ملف النموذج (.gguf)</div>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <input type="text" class="st-input" id="cfg-llm-model" readonly placeholder="اختر model.gguf..." style="direction:ltr;text-align:left;flex:1;font-family:var(--font-mono, monospace);">
+                  <button class="adm-btn" type="button" id="btn-pick-llm-model">اختيار...</button>
+                </div>
+              </div>
+
+              <div class="st-row">
+                <div class="st-row-info">
+                  <div class="st-row-title">مستوى الأداء (مواصفات الجهاز)</div>
+                  <div class="st-row-desc">متواضع: CPU بالكامل وسياق صغير — لا يتعطل على الأجهزة الضعيفة. كامل: استخدام كل طبقات GPU كما كان سابقاً.</div>
+                </div>
+                <div class="st-row-action">
+                  <select class="st-select" id="cfg-llm-spec">
+                    <option value="low">متواضع — آمن على أي جهاز (مُوصى به)</option>
+                    <option value="medium">متوسط — استعمال جزئي للـ GPU</option>
+                    <option value="full">كامل — كل طبقات GPU (سريع لكن يستهلك ذاكرة)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="st-row" style="flex-direction:column;align-items:flex-start;">
+                <div class="st-row-info">
+                  <div class="st-row-title">الحالة الحالية</div>
+                  <div class="st-row-desc" id="cfg-llm-status" style="font-family:var(--font-mono, monospace);direction:ltr;text-align:left;">... </div>
+                </div>
+              </div>
+
+              <div style="padding-top:6px;display:flex;justify-content:flex-end;">
+                <button class="adm-btn adm-btn-accent" type="button" id="btn-save-llm-local">حفظ النموذج المحلي وإعادة تشغيله</button>
+              </div>
+            </div>
+
             <!-- زر الحفظ والتطبيق -->
             <div style="padding-top:8px;display:flex;justify-content:flex-end;">
               <button class="adm-btn adm-btn-accent" type="button" id="btn-save-model-settings">حفظ وتطبيق إعدادات النموذج</button>
@@ -1280,6 +1338,115 @@
               </div>
 
               <div id="mem-list" class="mem-manager"></div>
+            </div>
+          </div>
+
+          <div class="st-panel hidden" id="st-panel-quickpopup">
+            <div class="st-section-title"><span>البوب-أب السريع (Quick Popup)</span></div>
+
+            <div class="st-row">
+              <div class="st-row-info">
+                <div class="st-row-title">تفعيل البوب-أب السريع</div>
+                <div class="st-row-desc">مفعّل افتراضياً. عند الإيقاف يُغلق الوكيل الخلفي وتتوقف الاستجابة الفورية.</div>
+              </div>
+              <div class="st-row-action">
+                <button type="button" role="switch" class="st-switch active" id="cfg-qp-enabled" aria-checked="true"><span class="st-switch-thumb"></span></button>
+              </div>
+            </div>
+
+            <div class="st-row" style="flex-direction:column;align-items:stretch;">
+              <div class="st-row-info">
+                <div class="st-row-title">اختصار التوليد السريع</div>
+                <div class="st-row-desc">يولّد رداً على النص المحدد في أي برنامج. تحذير: تجنّب Space وحده لأنه مخصص للتبديل بين العربية والإنجليزية.</div>
+              </div>
+              <input type="text" class="st-input" id="cfg-qp-hotkey" style="direction:ltr;text-align:left;" placeholder="Ctrl+Alt+Space">
+            </div>
+
+            <div class="st-row" style="flex-direction:column;align-items:stretch;">
+              <div class="st-row-info">
+                <div class="st-row-title">اختصار إعادة فتح آخر رد</div>
+                <div class="st-row-desc">يعرض آخر إجابة فوراً دون انتظار النموذج.</div>
+              </div>
+              <input type="text" class="st-input" id="cfg-qp-reopen" style="direction:ltr;text-align:left;" placeholder="Ctrl+Alt+R">
+            </div>
+
+            <div id="qp-warn" class="qp-warning hidden">اختصار «Space» وحده (أو مع Ctrl/Alt) يتعارض مع مفتاح تبديل اللغة العربية/الإنجليزية في ويندوز — يُفضَّل استبدال المفتاح الرئيسي بأي حرف أو Fn بدلاً منه.</div>
+
+            <div class="st-row">
+              <div class="st-row-info">
+                <div class="st-row-title">حجم الرد الافتراضي</div>
+              </div>
+              <div class="st-row-action">
+                <select class="st-select" id="cfg-qp-length">
+                  <option value="short">قصير — جملة أو جملتان</option>
+                  <option value="medium">متوسط — فقرة قصيرة</option>
+                  <option value="detailed">مفصّل — شرح كافٍ</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="st-row" style="flex-direction:column;align-items:stretch;">
+              <div class="st-row-info">
+                <div class="st-row-title">الأمر المخصص لتخصيص الرد</div>
+                <div class="st-row-desc">إن كتبته يسيطر حرفياً على طريقة الرد ويستبدل القالب أعلاه.</div>
+              </div>
+              <textarea class="st-textarea" id="cfg-qp-command" rows="3" placeholder="مثال: قدم الاجابة الصحيحة باختصار فقط"></textarea>
+            </div>
+
+            <div class="st-row">
+              <div class="st-row-info">
+                <div class="st-row-title">مدة بقاء النافذة</div>
+                <div class="st-row-desc">بالثواني (1–30)؛ يتوقف العدّاد تلقائياً عند تمرير الفأرة فوقها.</div>
+              </div>
+              <div class="st-row-action">
+                <input type="number" class="st-input" id="cfg-qp-duration" min="1" max="30" step="1" style="width:90px;">
+              </div>
+            </div>
+
+            <div class="st-row">
+              <div class="st-row-info"><div class="st-row-title">موضع النافذة فوق الشريط</div></div>
+              <div class="st-row-action">
+                <select class="st-select" id="cfg-qp-position">
+                  <option value="left">أسفل اليسار</option>
+                  <option value="center">أسفل الوسط</option>
+                  <option value="right">أسفل اليمين (بجانب الساعة)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="st-row">
+              <div class="st-row-info"><div class="st-row-title">لون النافذة</div></div>
+              <div class="st-row-action">
+                <select class="st-select" id="cfg-qp-color">
+                  <option value="dark">داكن</option>
+                  <option value="light">فاتح</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="st-row">
+              <div class="st-row-info"><div class="st-row-title">حجم النافذة</div></div>
+              <div class="st-row-action">
+                <select class="st-select" id="cfg-qp-size">
+                  <option value="small">صغير (300px)</option>
+                  <option value="medium">متوسط (420px)</option>
+                  <option value="wide">عريض (560px)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="st-row">
+              <div class="st-row-info">
+                <div class="st-row-title">حفظ الردود في محادثة «سريع»</div>
+                <div class="st-row-desc">افتراضياً لا يُحفظ شيء. عند التفعيل يُسجَّل كل سؤال وجواب في محادثة «سريع» تظهر في الشريط الجانبي.</div>
+              </div>
+              <div class="st-row-action">
+                <button type="button" role="switch" class="st-switch" id="cfg-qp-save" aria-checked="false"><span class="st-switch-thumb"></span></button>
+              </div>
+            </div>
+
+            <div style="padding-top:8px;display:flex;justify-content:flex-end;">
+              <button class="adm-btn adm-btn-primary" type="button" id="btn-save-quickpopup">حفظ وتطبيق الإعدادات</button>
             </div>
           </div>
 

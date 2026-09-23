@@ -264,6 +264,10 @@
   display:flex;align-items:flex-start;gap:8px;padding:10px 14px;border-radius:10px;
   background:#fff3f0;border:1px solid #f2b1ad;color:#a54540;font-size:12.5px;line-height:1.7;
 }
+.qp-warning{
+  margin:2px 0 10px;padding:10px 14px;border-radius:10px;
+  background:#fff7e8;border:1px solid #f0d39a;color:#9a6b00;font-size:12.5px;line-height:1.7;
+}
 @media (max-width:720px){
   .mem-form-grid,.mem-item-fields{grid-template-columns:1fr}
   .mem-preview{font-size:11px}
