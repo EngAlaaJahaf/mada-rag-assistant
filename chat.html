@@ -1,0 +1,1492 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>مذكّرتي شات</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2310a37f'/%3E%3Cpath d='M16 5c1 6 4 9 10 11-6 2-9 5-10 11-1-6-4-9-10-11 6-2 9-5 10-11z' fill='white'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/katex/katex.min.css">
+<link rel="stylesheet" href="/static/css/variables.css">
+<link rel="stylesheet" href="/static/css/sidebar.css">
+<link rel="stylesheet" href="/static/css/layout.css">
+<link rel="stylesheet" href="/static/css/messages.css">
+<link rel="stylesheet" href="/static/css/modals.css">
+<link rel="stylesheet" href="/static/css/projects.css">
+</head>
+<body class="is-empty">
+<div id="app">
+
+  <!-- ================= Sidebar ================= -->
+  <aside id="sidebar">
+    <!-- Top Header of Sidebar -->
+    <div class="sb-header">
+      <div class="sb-brand">ChatGPT</div>
+      <div class="sb-header-actions">
+        <button class="sb-iconbtn" id="btn-search-toggle" type="button" title="بحث في المحادثات">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        </button>
+        <button class="sb-iconbtn" id="btn-collapse" type="button" title="إغلاق الشريط الجانبي">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Search Input Box (Collapsible) -->
+    <div class="sb-search-box" id="sb-search-box">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="sb-q" type="text" placeholder="بحث في المحادثات..." autocomplete="off" spellcheck="false">
+    </div>
+
+    <!-- Pinned Top Navigation List (8 Items Matching ChatGPT) -->
+    <div class="sb-nav">
+      <button class="sb-nav-item active" id="btn-new" type="button">
+        <span class="sbn-text">دردشة جديدة</span>
+        <svg class="sbn-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </button>
+
+      <button class="sb-nav-item" type="button" data-action="images">
+        <span class="sbn-text">الصور</span>
+        <svg class="sbn-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      </button>
+
+      <button class="sb-nav-item" type="button" data-action="library">
+        <span class="sbn-text">المكتبة</span>
+        <svg class="sbn-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      </button>
+
+      <button class="sb-nav-item" type="button" data-action="schedule">
+        <span class="sbn-text">المهام المجدولة</span>
+        <svg class="sbn-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </button>
+
+      <button class="sb-nav-item" type="button" data-action="plugins">
+        <span class="sbn-text">المكونات الإضافية</span>
+        <svg class="sbn-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+
+      <button class="sb-nav-item" type="button" data-action="projects">
+        <span class="sbn-text">المشروعات</span>
+        <svg class="sbn-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      </button>
+
+      <button class="sb-nav-item" type="button" data-action="codex">
+        <span class="sbn-text">Codex</span>
+        <svg class="sbn-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      </button>
+
+      <button class="sb-nav-item" type="button" data-action="more">
+        <span class="sbn-text">... أكثر</span>
+        <svg class="sbn-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/><circle cx="5" cy="12" r="1.5"/></svg>
+      </button>
+    </div>
+
+    <!-- Projects Section (Matching Screenshot 3) -->
+    <div class="sb-projects-section">
+      <div class="sb-projects-header-card" id="btn-projects-card">
+        <button class="sb-proj-header-right" id="btn-toggle-projects" type="button">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span class="sb-proj-title">المشروعات</span>
+        </button>
+        <button class="sb-proj-add-btn" id="btn-new-project-trigger" type="button" title="إنشاء مشروع جديد">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+      <div class="sb-projects-list" id="sb-projects-list"></div>
+    </div>
+
+    <!-- Recent Chats Section -->
+    <div class="sb-recents-section">
+      <div class="sb-label">المحادثات الأخيرة</div>
+      <div id="chatlist"></div>
+      <div id="list-empty" class="hidden">لا توجد محادثات بعد</div>
+    </div>
+
+    <!-- Footer Account Card with Popover Menu -->
+    <div class="sb-foot">
+      <!-- Popover Menu -->
+      <div id="account-popover" class="account-popover" role="menu" aria-label="قائمة الحساب" aria-hidden="true">
+        <!-- Top Profile Item -->
+        <button class="account-menu-item account-menu-user" id="menu-item-user-header" type="button" role="menuitem" title="تعديل ملف التعريف">
+          <div class="amu-right">
+            <div class="amu-avatar" id="menu-avatar">RY</div>
+            <div class="amu-info">
+              <div class="amu-name" id="menu-user-name">سامي صالح</div>
+              <div class="amu-plan" id="menu-user-plan">المجانية</div>
+            </div>
+          </div>
+          <div class="amu-chevron">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </div>
+        </button>
+
+        <div class="account-menu-divider"></div>
+
+        <!-- Middle Action Items -->
+        <button class="account-menu-item" id="menu-item-upgrade" type="button" role="menuitem">
+          <div class="ami-right">
+            <span class="ami-icon">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.912 5.885a2 2 0 0 0 1.203 1.203L21 12l-5.885 1.912a2 2 0 0 0-1.203 1.203L12 21l-1.912-5.885a2 2 0 0 0-1.203-1.203L3 12l5.885-1.912a2 2 0 0 0 1.203-1.203L12 3z"/></svg>
+            </span>
+            <span class="ami-label">ترقية الخطة</span>
+          </div>
+        </button>
+
+        <button class="account-menu-item" id="menu-item-customize" type="button" role="menuitem">
+          <div class="ami-right">
+            <span class="ami-icon">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M16 12A4 4 0 1 1 9.5 8.5"/><line x1="12" y1="12" x2="15" y2="9"/></svg>
+            </span>
+            <span class="ami-label">التخصيص</span>
+          </div>
+        </button>
+
+        <button class="account-menu-item" id="menu-item-profile" type="button" role="menuitem">
+          <div class="ami-right">
+            <span class="ami-icon">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"/></svg>
+            </span>
+            <span class="ami-label">ملف التعريف</span>
+          </div>
+        </button>
+
+        <button class="account-menu-item" id="menu-item-settings" type="button" role="menuitem">
+          <div class="ami-right">
+            <span class="ami-icon">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </span>
+            <span class="ami-label">الإعدادات</span>
+          </div>
+        </button>
+
+        <div class="account-menu-divider"></div>
+
+        <!-- Bottom Action Items -->
+        <button class="account-menu-item" id="menu-item-help" type="button" role="menuitem">
+          <div class="ami-right">
+            <span class="ami-icon">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="4.93" y1="4.93" x2="9.17" y2="9.17"/><line x1="14.83" y1="14.83" x2="19.07" y2="19.07"/><line x1="14.83" y1="9.17" x2="19.07" y2="4.93"/><line x1="4.93" y1="19.07" x2="9.17" y2="14.83"/></svg>
+            </span>
+            <span class="ami-label">المساعدة</span>
+          </div>
+          <div class="ami-chevron">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </div>
+        </button>
+
+        <button class="account-menu-item ami-logout" id="menu-item-logout" type="button" role="menuitem">
+          <div class="ami-right">
+            <span class="ami-icon">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            </span>
+            <span class="ami-label">تسجيل الخروج</span>
+          </div>
+        </button>
+      </div>
+
+      <!-- Trigger Card Container -->
+      <div class="sb-user-card-wrap" id="account-trigger" role="button" aria-haspopup="true" aria-expanded="false" tabindex="0" title="قائمة الحساب">
+        <div class="sb-user-card-info">
+          <div class="sb-u-av" id="user-avatar-pill">RY</div>
+          <div class="sb-u-info">
+            <div class="sb-u-name" id="user-name-pill">سامي صالح</div>
+            <div class="sb-u-plan" id="user-plan-pill">المجانية</div>
+          </div>
+        </div>
+        <button class="sb-upgrade-btn" id="btn-upgrade-pill" type="button" title="ترقية الخطة">الترقية</button>
+      </div>
+      <!-- Hidden theme toggle preserved for compatibility -->
+      <button class="hidden" id="btn-theme" type="button"><span id="icon-theme"></span></button>
+    </div>
+  </aside>
+  <div class="sb-scrim" id="sb-scrim"></div>
+
+  <!-- ================= Main Area ================= -->
+  <main id="main">
+    <header id="topbar">
+      <!-- Right zone: Sidebar reopen button -->
+      <div class="tb-right">
+        <button class="tb-iconbtn" id="sb-reopen" type="button" title="فتح القائمة الجانبية">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+        </button>
+      </div>
+
+      <!-- Center: Segmented control & Model pill -->
+      <div class="tb-center">
+        <div class="segmented-pill">
+          <button class="seg-btn active" id="tab-chat" type="button">الدردشة</button>
+          <button class="seg-btn" id="tab-work" type="button">+ العمل</button>
+        </div>
+        <div class="mselect" id="mselect">
+          <button class="mpill" id="mbtn" type="button" title="اختيار النموذج">
+            <span class="mp-t" id="mp-label">Qwen3-4B</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="mmenu" id="mmenu">
+            <div class="mm-label" style="padding:6px 12px 2px;font-size:11px;color:var(--muted)">أنماط المعالجة</div>
+            <button type="button" data-mode="free" id="mi-free" class="active">
+              <span class="mt-main">
+                <span class="mt-t">محادثة عامة (الدردشة)</span>
+                <span class="mt-s">Qwen3-4B · ردود ذكية وسريعة</span>
+              </span>
+              <span class="mm-check"></span>
+            </button>
+            <button type="button" data-mode="review" id="mi-review">
+              <span class="mt-main">
+                <span class="mt-t">مراجعة ملفاتك (+ العمل)</span>
+                <span class="mt-s">Qwen3-4B · إجابات مستندة لملفاتك المرفوعة</span>
+              </span>
+              <span class="mm-check"></span>
+            </button>
+          </div>
+        </div>
+        <span class="tb-temp-badge hidden" id="tb-temp-badge">مؤقت</span>
+      </div>
+
+      <!-- Left zone: Paid plans & Temporary chat -->
+      <div class="tb-left">
+        <button class="tb-temp-btn" id="btn-temp-chat" type="button" title="دردشة مؤقتة (لا تُحفظ في السجل)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span class="tb-temp-label">دردشة مؤقتة</span>
+        </button>
+        <button class="tb-upgrade-btn" type="button">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="#0066cc"><path d="M12 2l2.4 7.4h7.6l-6.2 4.5 2.4 7.4-6.2-4.5-6.2 4.5 2.4-7.4-6.2-4.5h7.6z"/></svg>
+          <span>الخطط المدفوعة</span>
+        </button>
+        <button class="tb-iconbtn" id="btn-refresh-chat" type="button" title="دردشة جديدة">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Center Zone (Handles both centered empty state & bottom composer) -->
+    <div id="center-zone">
+      <!-- Empty State Hero Greeting (Shown only when empty) -->
+      <div id="hero-title-box">
+        <h1 class="hero-title">أنا مستعد عندما تكون أنت كذلك.</h1>
+      </div>
+
+      <!-- Messages Stream (Shown when not empty) -->
+      <div id="msgs"></div>
+
+      <!-- Minimap Navigator (Images 1 & 2) -->
+      <div id="minimap" class="hidden">
+        <div id="minimap-ticks"></div>
+        <div id="minimap-popover">
+          <div class="mm-pop-title">التنقل السريع في المحادثة</div>
+          <div id="minimap-list"></div>
+        </div>
+      </div>
+
+      <!-- Unified Composer -->
+      <div id="composer-container">
+        <div class="comp-inner">
+          <!-- Active Scoped File Filter Pill -->
+          <div id="active-filter-bar" class="hidden">
+            <span>🎯 محصور على: <strong id="af-names"></strong></span>
+            <button class="af-btn" id="af-edit" type="button">تعديل</button>
+            <span class="af-clear" id="af-clear" title="إلغاء الحصر والبحث في جميع الملفات">✕</span>
+          </div>
+          <div id="attachment-bar" class="hidden"></div>
+          <input type="file" id="file-input" multiple accept=".txt,.md,.pdf,.docx,.pptx,.xlsx,.sql,.json,.csv,.py,.js,.html,.css,.log" style="display:none">
+          <div class="composer">
+            <!-- Right: Attach Plus Button -->
+            <button class="c-btn" id="btn-attach" type="button" title="إرفاق ملفات أو مستندات">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+
+            <!-- Textarea -->
+            <textarea id="ta" rows="1" placeholder="اسأل عن أي شيء" autocomplete="off" spellcheck="false"></textarea>
+
+            <!-- Left Tools -->
+            <div class="c-tools">
+              <!-- Thinking toggle pill -->
+              <button class="tool-pill" id="btn-thinking" type="button" title="وضع التفكير العميق">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                <span>التفكير</span>
+              </button>
+
+              <!-- Mic button -->
+              <button class="c-btn" id="btn-mic" type="button" title="الإملاء الصوتي">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+              </button>
+
+              <!-- Voice Blue button (Shown when textarea is empty) -->
+              <button class="c-action-btn c-voice-btn" id="btn-voice" type="button" title="وضع الصوت">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="9" width="2.8" height="6" rx="1.4"/><rect x="9" y="5" width="2.8" height="14" rx="1.4"/><rect x="14" y="7" width="2.8" height="10" rx="1.4"/><rect x="19" y="9" width="2.8" height="6" rx="1.4"/></svg>
+              </button>
+
+              <!-- Send Button (Shown when textarea has text) -->
+              <button class="c-action-btn c-send-btn hidden" id="btn-send" type="button" title="إرسال">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+              </button>
+
+              <!-- Stop Button (Shown when generating) -->
+              <button class="c-action-btn c-stop-btn hidden" id="btn-stop" type="button" title="إيقاف التوليد">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="care">مذكّرتي قد يخطئ — تحقق من المعلومات المهمة.</div>
+        </div>
+      </div>
+
+      <!-- Empty State Suggestions (Shown only when empty below the composer) -->
+      <div id="hero-actions-box">
+        <button class="hero-sug-btn" type="button" data-prompt="أنشئ لي صورة أو ملصقاً توضيحياً">
+          <span>إنشاء صورة أو ملصق</span>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        </button>
+        <button class="hero-sug-btn" type="button" data-prompt="ساعدني في الكتابة والتحرير والتلخيص">
+          <span>الكتابة أو التحرير</span>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        </button>
+        <button class="hero-sug-btn" type="button" data-prompt="ابحث في المستندات والبيانات عن أحدث المعلومات">
+          <span>ابحث في الويب</span>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- ================= 1. Projects Hub View (Screenshot 3) ================= -->
+    <div id="view-projects-hub" class="main-view hidden">
+      <div class="proj-hub-container">
+        <!-- Header row -->
+        <div class="proj-hub-header">
+          <h1 class="proj-hub-title">المشروعات</h1>
+          <div class="proj-hub-actions">
+            <!-- New Project Button (white pill in dark mode matching Image 3) -->
+            <button type="button" class="proj-hub-btn-new" id="btn-hub-new-project">
+              <span>جديد</span>
+            </button>
+            <!-- Search Box with icon matching Image 3 -->
+            <div class="proj-hub-search-box">
+              <input type="text" id="hub-search-input" placeholder="بحث في المشاريع" autocomplete="off">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter Pills (Matching Image 3) -->
+        <div class="proj-hub-filters">
+          <button type="button" class="proj-filter-pill active" data-filter="all">الكل</button>
+          <button type="button" class="proj-filter-pill" data-filter="own">من إنشائك</button>
+          <button type="button" class="proj-filter-pill" data-filter="shared">تمت مشاركتها معك</button>
+        </div>
+
+        <!-- Table Header (Matching Image 3) -->
+        <div class="proj-hub-table-head">
+          <div class="pht-col-name">الاسم</div>
+          <div class="pht-col-date">آخر تعديل</div>
+        </div>
+
+        <!-- Projects List Table Body -->
+        <div class="proj-hub-list" id="hub-projects-list"></div>
+
+        <!-- Empty State if no projects -->
+        <div class="proj-hub-empty hidden" id="hub-empty-state">
+          <div class="phe-icon">📁</div>
+          <div class="phe-title">لا توجد مشاريع حتى الآن</div>
+          <div class="phe-sub">أنشئ مشروعك الأول لتنظيم المحادثات والملفات في مكان واحد</div>
+          <button type="button" class="phe-btn" id="btn-hub-create-first">إنشاء مشروع جديد</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= 2. Project Workspace View (Screenshot 2) ================= -->
+    <div id="view-project-detail" class="main-view hidden">
+      <div class="proj-detail-container">
+        <!-- Project Header (Large Icon + Name + Actions) -->
+        <div class="proj-detail-header">
+          <div class="pdh-info">
+            <span class="pdh-icon" id="pd-header-icon" style="color: #ef4444;">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+            </span>
+            <h1 class="pdh-title" id="pd-header-title">تعلم الآلة</h1>
+          </div>
+          <div class="pdh-actions">
+            <!-- Share button -->
+            <button type="button" class="pdh-share-btn" id="btn-proj-share" title="مشاركة رابط المشروع">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+              <span>مشاركة</span>
+            </button>
+            <!-- Kebab options button -->
+            <div class="ci-kebab" style="position:relative;">
+              <button type="button" class="pdh-kebab-btn" id="btn-proj-kebab" title="خيارات المشروع">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="1.5"/><circle cx="6" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/></svg>
+              </button>
+              <div class="kmenu" id="pd-kmenu">
+                <button type="button" id="pdk-edit">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                  <span>تعديل الاسم واللون</span>
+                </button>
+                <div class="km-divider"></div>
+                <button type="button" class="km-del" id="pdk-delete">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                  <span>حذف المشروع</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dedicated Project Composer (Matching Screenshot 2) -->
+        <div class="proj-composer-wrap">
+          <div class="proj-composer-box">
+            <!-- Right: Attach button (+) -->
+            <button type="button" class="pc-btn" id="btn-proj-attach" title="إرفاق ملف بالمشروع">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+            <!-- Center textarea with dynamic placeholder -->
+            <textarea id="proj-ta" rows="1" placeholder="دردشة جديدة في تعلم الآلة" autocomplete="off" spellcheck="false"></textarea>
+            <!-- Left tools: thinking, mic, voice, send -->
+            <div class="pc-tools">
+              <button type="button" class="tool-pill" id="btn-proj-thinking" title="وضع التفكير العميق">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                <span>التفكير</span>
+              </button>
+              <button type="button" class="c-btn" id="btn-proj-mic" title="الإملاء الصوتي">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+              </button>
+              <button type="button" class="c-action-btn c-voice-btn" id="btn-proj-voice" title="وضع الصوت">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="9" width="2.8" height="6" rx="1.4"/><rect x="9" y="5" width="2.8" height="14" rx="1.4"/><rect x="14" y="7" width="2.8" height="10" rx="1.4"/><rect x="19" y="9" width="2.8" height="6" rx="1.4"/></svg>
+              </button>
+              <button type="button" class="c-action-btn c-send-btn hidden" id="btn-proj-send" title="إرسال">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sub-tabs (Matching Screenshot 2): الدردشات | المصادر -->
+        <div class="proj-detail-tabs">
+          <button type="button" class="pdt-tab active" data-tab="chats" id="pdt-tab-chats">الدردشات</button>
+          <button type="button" class="pdt-tab" data-tab="sources" id="pdt-tab-sources">المصادر</button>
+        </div>
+
+        <!-- Tab Content: Chats -->
+        <div class="pdt-content" id="pdt-content-chats">
+          <!-- Empty State (Exact match to Screenshot 2) -->
+          <div class="proj-empty-state" id="pd-empty-state">
+            <div class="pes-title">لا توجد محادثات بعد</div>
+            <div class="pes-subtitle" id="pd-empty-subtitle">ستُعرض الدردشات الخاصة بـ تعلم الآلة هنا</div>
+          </div>
+
+          <!-- Chats List (When chats exist) -->
+          <div class="proj-chats-grid hidden" id="pd-chats-grid"></div>
+        </div>
+
+        <!-- Tab Content: Sources (Documents) -->
+        <div class="pdt-content hidden" id="pdt-content-sources">
+          <div class="proj-sources-wrap" id="pd-sources-wrap" style="text-align:center;padding:40px 20px;color:var(--muted);font-size:14px;">
+            <div style="font-size:36px;margin-bottom:10px;">📄</div>
+            <div style="font-weight:600;color:var(--text);margin-bottom:4px;">المصادر والمستندات</div>
+            <div>يمكنك ربط مستندات وملفات عمل بهذا المشروع للاستفادة منها في إجابات الذكاء الاصطناعي.</div>
+            <button type="button" class="phe-btn" id="btn-proj-open-docs" style="margin-top:16px;">إدارة الملفات</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ================= Search Spotlight Modal ================= -->
+<div id="search-modal" class="hidden">
+  <div class="sm-backdrop" id="sm-backdrop"></div>
+  <div class="sm-dialog">
+    <div class="sm-header">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="sm-input" type="text" placeholder="بحث في عناوين ورسائل المحادثات..." autocomplete="off" spellcheck="false">
+      <kbd class="sm-kbd">Esc</kbd>
+    </div>
+    <div class="sm-body">
+      <div id="sm-results"></div>
+      <div id="sm-empty" class="hidden">لم يتم العثور على أي نتائج تطابق بحثك</div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= Files Manager Modal ================= -->
+<div id="files-modal" class="hidden">
+  <div class="fm-backdrop" id="fm-backdrop"></div>
+  <div class="fm-dialog">
+    <div class="fm-header">
+      <div class="fm-title-box">
+        <div class="fm-title">📁 إدارة الملفات والمكتبة (RAG)</div>
+        <div class="fm-sub" id="fm-stats">جاري تحميل المستندات...</div>
+      </div>
+      <button class="fm-close" id="fm-close" type="button" title="إغلاق">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="fm-toolbar">
+      <div class="fm-tools-left">
+        <button class="fm-btn fm-btn-primary" id="fm-btn-upload" type="button">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>رفع ملف جديد</span>
+        </button>
+        <button class="fm-btn" id="fm-btn-select-all" type="button">تحديد الكل</button>
+        <button class="fm-btn" id="fm-btn-clear-all" type="button">إلغاء التحديد</button>
+      </div>
+      <div class="fm-search">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input id="fm-filter-input" type="text" placeholder="تصفية بالاسم..." autocomplete="off">
+      </div>
+    </div>
+    <div class="fm-body">
+      <div class="fm-list" id="fm-list"></div>
+      <div id="fm-empty" class="hidden" style="text-align:center;padding:30px;color:var(--muted);font-size:14px;">لا توجد أي ملفات مرفوعة حالياً. انقر "رفع ملف جديد" لإضافة مستنداتك!</div>
+    </div>
+    <div class="fm-footer">
+      <div class="fm-status" id="fm-selection-status">لم يتم حصر الإجابة (البحث في جميع الملفات)</div>
+      <div class="fm-footer-actions">
+        <button class="fm-btn" id="fm-btn-reset-filter" type="button">البحث في الكل</button>
+        <button class="fm-btn fm-btn-primary" id="fm-btn-apply" type="button">حفظ وتطبيق الحصر</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= Account Action Modals ================= -->
+
+<!-- 1. Upgrade Plan Modal -->
+<div id="modal-upgrade" class="app-dialog-modal hidden" role="dialog" aria-modal="true" aria-labelledby="mu-title">
+  <div class="adm-backdrop" data-close="modal-upgrade"></div>
+  <div class="adm-dialog adm-dialog-wide">
+    <div class="adm-header">
+      <div class="adm-title" id="mu-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.912 5.885a2 2 0 0 0 1.203 1.203L21 12l-5.885 1.912a2 2 0 0 0-1.203 1.203L12 21l-1.912-5.885a2 2 0 0 0-1.203-1.203L3 12l5.885-1.912a2 2 0 0 0 1.203-1.203L12 3z"/></svg>
+        <span>ترقية الخطة إلى Plus</span>
+      </div>
+      <button class="adm-close" type="button" data-close="modal-upgrade" title="إغلاق">✕</button>
+    </div>
+    <div class="adm-body">
+      <div class="adm-upgrade-hero">
+        <span class="adm-upgrade-badge">النسخة المتقدمة</span>
+        <div class="adm-upgrade-title">ارتقِ بتجربة المذاكرة والبحث العلمي</div>
+        <div class="adm-upgrade-sub">احصل على أداء فائق وسرعة مضاعفة واستفد من أحدث نماذج الذكاء الاصطناعي مع معالجة غير محدودة للمستندات.</div>
+      </div>
+      <div class="adm-feat-list">
+        <div class="adm-feat-item">
+          <span class="adm-feat-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+          <span>وصول غير محدود لجميع نماذج التفكير والاستنتاج المتقدمة</span>
+        </div>
+        <div class="adm-feat-item">
+          <span class="adm-feat-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+          <span>سرعة استجابة فائقة وأولوية أثناء أوقات الذروة</span>
+        </div>
+        <div class="adm-feat-item">
+          <span class="adm-feat-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+          <span>تحليل موسع للمستندات والكتب الضخمة وحصص رفع أكبر</span>
+        </div>
+        <div class="adm-feat-item">
+          <span class="adm-feat-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+          <span>ميزة التوليد الصوتي والترجمة الفورية العميقة</span>
+        </div>
+      </div>
+    </div>
+    <div class="adm-footer">
+      <button class="adm-btn" type="button" data-close="modal-upgrade">لاحقاً</button>
+      <button class="adm-btn adm-btn-accent" id="btn-confirm-upgrade" type="button">الترقية الآن إلى Plus</button>
+    </div>
+  </div>
+</div>
+
+<!-- 2. Customization Modal -->
+<div id="modal-customize" class="app-dialog-modal hidden" role="dialog" aria-modal="true" aria-labelledby="mc-title">
+  <div class="adm-backdrop" data-close="modal-customize"></div>
+  <div class="adm-dialog">
+    <div class="adm-header">
+      <div class="adm-title" id="mc-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M16 12A4 4 0 1 1 9.5 8.5"/><line x1="12" y1="12" x2="15" y2="9"/></svg>
+        <span>التخصيص والمظهر</span>
+      </div>
+      <button class="adm-close" type="button" data-close="modal-customize" title="إغلاق">✕</button>
+    </div>
+    <div class="adm-body">
+      <div class="adm-form-group">
+        <label class="adm-label">مظهر الواجهة (Theme)</label>
+        <div class="adm-theme-grid">
+          <div class="adm-theme-card" id="theme-card-light" data-theme-val="light">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            <span>فاتح</span>
+          </div>
+          <div class="adm-theme-card" id="theme-card-dark" data-theme-val="dark">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            <span>داكن</span>
+          </div>
+          <div class="adm-theme-card" id="theme-card-auto" data-theme-val="auto">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <span>النظام</span>
+          </div>
+        </div>
+      </div>
+      <div class="adm-form-group">
+        <label class="adm-label">حجم الخط الأساسي</label>
+        <select class="adm-input" id="cfg-font-size">
+          <option value="15px">متوسط (15px)</option>
+          <option value="16px" selected>افتراضي (16px)</option>
+          <option value="17.5px">كبير مريح (17.5px)</option>
+        </select>
+      </div>
+    </div>
+    <div class="adm-footer">
+      <button class="adm-btn adm-btn-primary" type="button" data-close="modal-customize">تم</button>
+    </div>
+  </div>
+</div>
+
+<!-- 3. Profile Modal -->
+<div id="modal-profile" class="app-dialog-modal hidden" role="dialog" aria-modal="true" aria-labelledby="mp-title">
+  <div class="adm-backdrop" data-close="modal-profile"></div>
+  <div class="adm-dialog">
+    <div class="adm-header">
+      <div class="adm-title" id="mp-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"/></svg>
+        <span>ملف التعريف</span>
+      </div>
+      <button class="adm-close" type="button" data-close="modal-profile" title="إغلاق">✕</button>
+    </div>
+    <div class="adm-body">
+      <div class="adm-grid-2">
+        <div class="adm-form-group">
+          <label class="adm-label">الاسم المعروض</label>
+          <input type="text" class="adm-input" id="profile-input-name" value="سامي صالح" placeholder="اسمك الكامل">
+        </div>
+        <div class="adm-form-group">
+          <label class="adm-label">الرمز / الأحرف الأولى</label>
+          <input type="text" class="adm-input" id="profile-input-initials" value="RY" maxlength="3" placeholder="RY" style="text-transform:uppercase;">
+        </div>
+      </div>
+      <div class="adm-form-group">
+        <label class="adm-label">البريد الإلكتروني</label>
+        <input type="email" class="adm-input" id="profile-input-email" value="sami.saleh@example.com" placeholder="البريد الإلكتروني">
+      </div>
+      <div class="adm-form-group">
+        <label class="adm-label">الخطة الحالية</label>
+        <select class="adm-input" id="profile-input-plan">
+          <option value="المجانية" selected>المجانية</option>
+          <option value="الاحترافية (Plus)">الاحترافية (Plus)</option>
+        </select>
+      </div>
+    </div>
+    <div class="adm-footer">
+      <button class="adm-btn" type="button" data-close="modal-profile">إلغاء</button>
+      <button class="adm-btn adm-btn-primary" id="btn-save-profile" type="button">حفظ التغييرات</button>
+    </div>
+  </div>
+</div>
+
+<!-- 4. Modern ChatGPT-Style Settings Modal -->
+<div id="modal-settings" class="app-dialog-modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings-dialog-title">
+  <div class="adm-backdrop" data-close="modal-settings"></div>
+  <div class="adm-dialog" style="max-width:920px;height:86vh;max-height:740px;padding:0;overflow:hidden;border-radius:22px;">
+    <div class="grow overflow-y-hidden" style="display:flex;flex:1;height:100%;min-height:0;width:100%;">
+      <div dir="rtl" data-orientation="vertical" class="st-layout">
+
+        <!-- ================= Sidebar ================= -->
+        <div class="st-sidebar">
+          <!-- Desktop Close Button -->
+          <div class="st-topbar">
+            <button class="st-close-btn" type="button" data-close="modal-settings" aria-label="إغلاق" title="إغلاق">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+
+          <!-- Search Box -->
+          <div class="st-search-wrap">
+            <svg class="st-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+            <input id="st-search-input" role="searchbox" placeholder="البحث في الإعدادات" autocomplete="off" aria-label="البحث في الإعدادات" class="st-search-input" type="text">
+          </div>
+
+          <!-- Tabs List -->
+          <div role="tablist" aria-orientation="vertical" aria-label="الإعدادات" class="st-tablist" id="st-tablist">
+            
+            <!-- عام -->
+            <button class="st-tab-btn active" type="button" role="tab" data-tab="general" aria-selected="true" id="st-tab-trigger-general">
+              <span class="st-tab-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              </span>
+              <span class="st-tab-label">عام</span>
+            </button>
+
+            <!-- التخصيص -->
+            <button class="st-tab-btn" type="button" role="tab" data-tab="personalization" aria-selected="false" id="st-tab-trigger-personalization">
+              <span class="st-tab-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+              </span>
+              <span class="st-tab-label">التخصيص</span>
+            </button>
+
+            <!-- النموذج والذكاء الاصطناعي (تحديد يدوي) -->
+            <button class="st-tab-btn" type="button" role="tab" data-tab="model" aria-selected="false" id="st-tab-trigger-model">
+              <span class="st-tab-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.912 5.885a2 2 0 0 0 1.203 1.203L21 12l-5.885 1.912a2 2 0 0 0-1.203 1.203L12 21l-1.912-5.885a2 2 0 0 0-1.203-1.203L3 12l5.885-1.912a2 2 0 0 0 1.203-1.203L12 3z"/></svg>
+              </span>
+              <span class="st-tab-label">النموذج ومزوّد الخدمة</span>
+            </button>
+
+            <!-- الإشعارات -->
+            <button class="st-tab-btn" type="button" role="tab" data-tab="notifications" aria-selected="false" id="st-tab-trigger-notifications">
+              <span class="st-tab-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              </span>
+              <span class="st-tab-label">الإشعارات</span>
+            </button>
+
+            <!-- الصوت -->
+            <button class="st-tab-btn" type="button" role="tab" data-tab="voice" aria-selected="false" id="st-tab-trigger-voice">
+              <span class="st-tab-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+              </span>
+              <span class="st-tab-label">الصوت</span>
+            </button>
+
+            <!-- التحكم في البيانات -->
+            <button class="st-tab-btn" type="button" role="tab" data-tab="datacontrols" aria-selected="false" id="st-tab-trigger-datacontrols">
+              <span class="st-tab-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+              </span>
+              <span class="st-tab-label">التحكم في البيانات</span>
+            </button>
+
+            <!-- الحساب والاشتراك -->
+            <button class="st-tab-btn" type="button" role="tab" data-tab="account" aria-selected="false" id="st-tab-trigger-account">
+              <span class="st-tab-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"/></svg>
+              </span>
+              <span class="st-tab-label">الحساب</span>
+            </button>
+
+            <!-- لوحة المفاتيح -->
+            <button class="st-tab-btn" type="button" role="tab" data-tab="keyboard" aria-selected="false" id="st-tab-trigger-keyboard">
+              <span class="st-tab-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.001M10 8h.001M14 8h.001M18 8h.001M8 12h.001M12 12h.001M16 12h.001M7 16h10"/></svg>
+              </span>
+              <span class="st-tab-label">لوحة المفاتيح</span>
+            </button>
+
+            <!-- الذاكرة والتصحيحات -->
+            <button class="st-tab-btn" type="button" role="tab" data-tab="memory" aria-selected="false" id="st-tab-trigger-memory">
+              <span class="st-tab-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+              </span>
+              <span class="st-tab-label">الذاكرة والتصحيحات</span>
+            </button>
+
+          </div>
+        </div>
+
+        <!-- ================= Content Panels ================= -->
+        <div class="st-content">
+
+          <!-- 1. Panel: عام (General) -->
+          <div class="st-panel" id="st-panel-general">
+            <div class="st-section-title">
+              <span id="settings-dialog-title">عام</span>
+            </div>
+
+            <!-- المظهر -->
+            <div class="st-row">
+              <div class="st-row-info">
+                <div class="st-row-title">المظهر (Theme)</div>
+                <div class="st-row-desc">اختر مظهر الواجهة المفضل لديك أو طابق إعدادات جهازك.</div>
+              </div>
+              <div class="st-row-action">
+                <select class="st-select" id="cfg-theme-select">
+                  <option value="light">فاتح (Light)</option>
+                  <option value="dark">داكن (Dark)</option>
+                  <option value="auto">تلقائي مع النظام (System)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- حجم الخط -->
+            <div class="st-row">
+              <div class="st-row-info">
+                <div class="st-row-title">حجم الخط الأساسي</div>
+                <div class="st-row-desc">ضبط حجم الخطوط والنصوص في الواجهة والمحادثات.</div>
+              </div>
+              <div class="st-row-action">
+                <select class="st-select" id="cfg-general-font-size">
+                  <option value="15px">متوسط (15px)</option>
+                  <option value="16px">افتراضي (16px)</option>
+                  <option value="17.5px">كبير مريح (17.5px)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- لغة الواجهة -->
+            <div class="st-row">
+              <div class="st-row-info">
+                <div class="st-row-title">لغة الواجهة</div>
+                <div class="st-row-desc">لغة عرض القوائم والإرشادات.</div>
+              </div>
+              <div class="st-row-action">
+                <select class="st-select" id="cfg-language">
+                  <option value="ar" selected>العربية (Arabic)</option>
+                  <option value="en">English</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- تفعيل وضع التفكير الافتراضي -->
+            <div class="st-row">
+              <div class="st-row-info">
+                <div class="st-row-title">التفكير المعمّق افتراضياً</div>
+                <div class="st-row-desc">توليد مسار تفكير تفصيلي يشرح خطوات الإجابة المنطقية قبل النتيجة.</div>
+              </div>
+              <div class="st-row-action">
+                <button type="button" role="switch" class="st-switch active" id="cfg-switch-thinking" aria-checked="true">
+                  <span class="st-switch-thumb"></span>
+                </button>
+              </div>
+            </div>
+
+            <!-- مسح جميع المحادثات -->
+            <div class="st-row">
+              <div class="st-row-info">
+                <div class="st-row-title" style="color:#e5484d;">حذف جميع المحادثات</div>
+                <div class="st-row-desc">مسح كافة جلسات الدردشة المخزنة في هذا المتصفح نهائياً.</div>
+              </div>
+              <div class="st-row-action">
+                <button class="adm-btn adm-btn-danger" type="button" id="btn-clear-all-chats-gen">حذف الكل</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. Panel: التخصيص (Personalization) - Exactly matching user snippet -->
+          <div class="st-panel hidden" id="st-panel-personalization">
+            <div class="st-section-title">
+              <span>التخصيص</span>
+            </div>
+
+            <!-- الأسلوب والنبرة الأساسيان -->
+            <div class="st-row">
+              <div class="st-row-info">
+                <div class="st-row-title">الأسلوب والنبرة الأساسيان</div>
+                <div class="st-row-desc">اختر أسلوب ونبرة حديث الذكاء الاصطناعي معك. لن يؤثر ذلك على قدراته المعرفية.</div>
+              </div>
+              <div class="st-row-action">
+                <select class="st-select" id="cfg-tone">
+                  <option value="default" selected>افتراضي</option>
+                  <option value="professional">احترافي</option>
+                  <option value="friendly">ودود</option>
+                  <option value="candid">صريح</option>
+                  <option value="humorous">طريف</option>
+                  <option value="efficient">فعّال</option>
+                  <option value="sarcastic">ساخر</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- السمات المخصصة -->
+            <div style="padding-top:4px;">
+              <div class="st-row-title">السمات</div>
+              <div class="st-row-desc" style="margin-bottom:10px;">إلى جانب الأسلوب والنبرة الأساسيين يمكنك تحديد إعدادات مخصصة إضافية.</div>
+              
+              <div class="st-row">
+                <div class="st-row-info"><div class="st-row-title">الودّ</div></div>
+                <div class="st-row-action">
+                  <select class="st-select" id="cfg-trait-warmth">
+                    <option value="default" selected>افتراضي</option>
+                    <option value="high">مرتفع</option>
+                    <option value="medium">متوسط</option>
+                    <option value="low">منخفض</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="st-row">
+                <div class="st-row-info"><div class="st-row-title">الحماس</div></div>
+                <div class="st-row-action">
+                  <select class="st-select" id="cfg-trait-enthusiasm">
+                    <option value="default" selected>افتراضي</option>
+                    <option value="high">مرتفع</option>
+                    <option value="medium">متوسط</option>
+                    <option value="low">منخفض</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="st-row">
+                <div class="st-row-info"><div class="st-row-title">العناوين والقوائم</div></div>
+                <div class="st-row-action">
+                  <select class="st-select" id="cfg-trait-formatting">
+                    <option value="default" selected>افتراضي</option>
+                    <option value="detailed">مفصّل ومنظّم</option>
+                    <option value="concise">موجز وسريع</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="st-row">
+                <div class="st-row-info"><div class="st-row-title">رموز تعبيرية (Emojis)</div></div>
+                <div class="st-row-action">
+                  <select class="st-select" id="cfg-trait-emojis">
+                    <option value="default" selected>افتراضي</option>
+                    <option value="many">استخدام متكرر</option>
+                    <option value="none">بدون أي رموز تعبيرية</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- إجابات سريعة -->
+            <div class="st-row">
+              <div class="st-row-info">
+                <div class="st-row-title">إجابات سريعة</div>
+                <div class="st-row-desc">استخدام المعرفة العامة لتقديم إجابات سريعة ومتعمقة بدون استدعاء الذاكرة المطولة.</div>
+              </div>
+              <div class="st-row-action">
+                <button type="button" role="switch" class="st-switch active" id="cfg-switch-fast-answers" aria-checked="true">
+                  <span class="st-switch-thumb"></span>
+                </button>
+              </div>
+            </div>
+
+            <!-- التعليمات المخصصة -->
+            <div style="padding-top:6px;">
+              <div class="st-row-title">التعليمات المخصصة (Custom Instructions)</div>
+              <div class="st-row-desc" style="margin-bottom:8px;">تفضيلات إضافية فيما يخص كيفية الاستجابة والأسلوب وطريقة صياغة الإجابات.</div>
+              <textarea class="st-textarea" id="cfg-custom-instructions" rows="2" placeholder="اكتب هنا أي تعليمات ترغب أن يلتزم بها المساعد دائماً..."></textarea>
+            </div>
+
+            <!-- معلوماتك -->
+            <div style="padding-top:10px;">
+              <div class="st-row-title">معلوماتك</div>
+              <div class="st-row-desc" style="margin-bottom:8px;">تساعد هذه المعلومات على جعل الإجابات ملائمة لطبيعة عملك واهتماماتك.</div>
+              <div style="display:flex;flex-direction:column;gap:10px;">
+                <div>
+                  <div style="font-size:12.5px;font-weight:600;color:var(--text2);margin-bottom:4px;">الاسم المفضل</div>
+                  <input type="text" class="st-input" id="cfg-pref-name" placeholder="ما الاسم الذي ترغب أن يستخدمه معك؟">
+                </div>
+                <div>
+                  <div style="font-size:12.5px;font-weight:600;color:var(--text2);margin-bottom:4px;">الوظيفة أو التخصص</div>
+                  <input type="text" class="st-input" id="cfg-pref-role" placeholder="مثال: طالب حاسب، باحث أكاديمي، مهندس برمجيات...">
+                </div>
+                <div>
+                  <div style="font-size:12.5px;font-weight:600;color:var(--text2);margin-bottom:4px;">المزيد عنك</div>
+                  <textarea class="st-textarea" id="cfg-pref-bio" rows="2" placeholder="اهتمامات أو قيم أو تفضيلات ترغب بوضعها في الاعتبار..."></textarea>
+                </div>
+              </div>
+            </div>
+
+            <!-- الذاكرة -->
+            <div style="padding-top:10px;">
+              <div class="st-row-title">الذاكرة وتخصيص التجربة</div>
+              <div class="st-row">
+                <div class="st-row-info">
+                  <div class="st-row-title">تفعيل الذاكرة</div>
+                  <div class="st-row-desc">اسمح للنظام بتخصيص تجربتك بناءً على محادثاتك ومستنداتك وملفاتك.</div>
+                </div>
+                <div class="st-row-action">
+                  <button type="button" role="switch" class="st-switch active" id="cfg-switch-memory" aria-checked="true">
+                    <span class="st-switch-thumb"></span>
+                  </button>
+                </div>
+              </div>
+              <div class="st-row">
+                <div class="st-row-info">
+                  <div class="st-row-title">ملخص الذاكرة</div>
+                  <div class="st-row-desc">عرض نظرة عامة على ما تعلّمه المساعد عنك وإمكانية تفريغ الذاكرة المحفوظة.</div>
+                </div>
+                <div class="st-row-action">
+                  <button class="adm-btn" type="button" id="btn-clear-memory">إدارة الذاكرة</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- زر حفظ التخصيص -->
+            <div style="padding-top:8px;display:flex;justify-content:flex-end;">
+              <button class="adm-btn adm-btn-primary" type="button" id="btn-save-personalization">حفظ التخصيص</button>
+            </div>
+          </div>
+
+          <!-- 3. Panel: النموذج ومزوّد الخدمة (Manual Model & API Configuration) -->
+          <div class="st-panel hidden" id="st-panel-model">
+            <div class="st-section-title">
+              <span>تحديد النموذج ومزوّد الخدمة يدوياً</span>
+              <span style="font-size:12px;color:var(--accent);font-weight:500;">تحكم يدوي كامل</span>
+            </div>
+
+            <p style="font-size:13px;color:var(--muted);line-height:1.5;">
+              تمت إزالة أي ارتباطات أو روابط إجبارية ثابتة. يمكنك الآن تحديد عنوان الخادم واسم أي نموذج ذكاء اصطناعي محلي أو سحابي واستخدامه فوراً.
+            </p>
+
+            <!-- عنوان الخادم API Base URL -->
+            <div class="st-row" style="flex-direction:column;align-items:stretch;">
+              <div class="st-row-info" style="margin-bottom:6px;">
+                <div class="st-row-title">رابط مزوّد الخدمة (API Base URL / Endpoint)</div>
+                <div class="st-row-desc">حدد رابط الخادم المتوافق مع بروتوكول OpenAI Completions (مثل خادم llama.cpp، Ollama، vLLM، LM Studio، أو مزود خارجي).</div>
+              </div>
+              <input type="text" class="st-input" id="cfg-model-endpoint" placeholder="http://127.0.0.1:8080/v1" value="http://127.0.0.1:8080/v1" style="direction:ltr;text-align:left;font-family:var(--font-mono, monospace);">
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
+                <span class="st-badge-preset" data-preset-url="http://127.0.0.1:8080/v1">محلي: llama.cpp (8080)</span>
+                <span class="st-badge-preset" data-preset-url="http://127.0.0.1:11434/v1">محلي: Ollama (11434)</span>
+                <span class="st-badge-preset" data-preset-url="http://127.0.0.1:1234/v1">محلي: LM Studio (1234)</span>
+                <span class="st-badge-preset" data-preset-url="https://api.openai.com/v1">خارجي: OpenAI Compatible</span>
+              </div>
+            </div>
+
+            <!-- اسم النموذج Model Name -->
+            <div class="st-row" style="flex-direction:column;align-items:stretch;">
+              <div class="st-row-info" style="margin-bottom:6px;">
+                <div class="st-row-title">اسم النموذج (Model Identifier)</div>
+                <div class="st-row-desc">اكتب اسم النموذج الذي ترغب في إرسال الأسئلة إليه يدوياً.</div>
+              </div>
+              <input type="text" class="st-input" id="cfg-model-name" placeholder="Qwen3-4B" value="Qwen3-4B" style="direction:ltr;text-align:left;">
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
+                <span class="st-badge-preset" data-preset-model="Qwen3-4B">Qwen3-4B</span>
+                <span class="st-badge-preset" data-preset-model="llama-3.3-70b">Llama-3.3</span>
+                <span class="st-badge-preset" data-preset-model="deepseek-r1">DeepSeek-R1</span>
+                <span class="st-badge-preset" data-preset-model="mistral-nemo">Mistral-Nemo</span>
+                <span class="st-badge-preset" data-preset-model="gpt-4o-mini">GPT-4o-mini</span>
+              </div>
+            </div>
+
+            <!-- مفتاح API (اختياري) -->
+            <div class="st-row">
+              <div class="st-row-info">
+                <div class="st-row-title">مفتاح الوصول (API Key)</div>
+                <div class="st-row-desc">اختياري: اتركه فارغاً للنماذج المحلية بدون كلمة مرور.</div>
+              </div>
+              <div class="st-row-action" style="flex:1;max-width:260px;">
+                <input type="password" class="st-input" id="cfg-model-api-key" placeholder="Bearer sk-..." style="direction:ltr;text-align:left;">
+              </div>
+            </div>
+
+            <!-- درجة الحرارة Temperature -->
+            <div class="st-row">
+              <div class="st-row-info">
+                <div class="st-row-title">درجة الإبداع والحرارة (Temperature)</div>
+                <div class="st-row-desc">0.0 للدقة العلمية والرياضية التامة، 0.7 للتوازن الطبيعي، 1.0 للإبداع العالي.</div>
+              </div>
+              <div class="st-row-action" style="display:flex;align-items:center;gap:10px;">
+                <input type="range" id="cfg-model-temp" min="0" max="1" step="0.05" value="0.7" style="width:120px;accent-color:var(--accent);">
+                <span id="cfg-model-temp-label" style="font-weight:700;min-width:30px;text-align:center;">0.7</span>
+              </div>
+            </div>
+
+            <!-- الحد الأقصى للرموز Max Output Tokens -->
+            <div class="st-row">
+              <div class="st-row-info">
+                <div class="st-row-title">الحد الأقصى للرموز المولدة (Max Output Tokens)</div>
+                <div class="st-row-desc">أقصى عدد من الرموز والكلمات في الإجابة الواحدة.</div>
+              </div>
+              <div class="st-row-action">
+                <select class="st-select" id="cfg-model-max-tokens">
+                  <option value="1024">1024 رمز (إجابات سريعة)</option>
+                  <option value="2048" selected>2048 رمز (قياسي متوازن)</option>
+                  <option value="4096">4096 رمز (شرح مفصل وموسع)</option>
+                  <option value="8192">8192 رمز (كتابة بحوث وتقارير كاملة)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- زر الحفظ والتطبيق -->
+            <div style="padding-top:8px;display:flex;justify-content:flex-end;">
+              <button class="adm-btn adm-btn-accent" type="button" id="btn-save-model-settings">حفظ وتطبيق إعدادات النموذج</button>
+            </div>
+          </div>
+
+          <!-- 4. Panel: الصوت (Voice) -->
+          <div class="st-panel hidden" id="st-panel-voice">
+            <div class="st-section-title"><span>الصوت والإملاء</span></div>
+            <div class="st-row">
+              <div class="st-row-info">
+                <div class="st-row-title">الصوت المفضل للقراءة</div>
+                <div class="st-row-desc">اختيار الصوت الاصطناعي لقراءة الإجابات.</div>
+              </div>
+              <div class="st-row-action">
+                <select class="st-select" id="cfg-voice-voice">
+                  <option value="ar-SA-Hamed" selected>ماجد (عربي - هادئ)</option>
+                  <option value="ar-SA-Zariyah">سلمى (عربي - واضح)</option>
+                  <option value="default">صوت النظام الافتراضي</option>
+                </select>
+              </div>
+            </div>
+            <div class="st-row">
+              <div class="st-row-info">
+                <div class="st-row-title">سرعة القراءة الصوتية</div>
+                <div class="st-row-desc">التحكم في سرعة النطق عند الاستماع.</div>
+              </div>
+              <div class="st-row-action">
+                <select class="st-select" id="cfg-voice-speed">
+                  <option value="0.85">0.85x (بطيء)</option>
+                  <option value="1.0" selected>1.0x (طبيعي)</option>
+                  <option value="1.2">1.2x (سريع)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5. Panel: الإشعارات (Notifications) -->
+          <div class="st-panel hidden" id="st-panel-notifications">
+            <div class="st-section-title"><span>الإشعارات</span></div>
+            <div class="st-row">
+              <div class="st-row-info">
+                <div class="st-row-title">إشعارات اكتمال الردود الطويلة</div>
+                <div class="st-row-desc">تنبيه عند انتهاء كتابة الإجابة إذا كنت في تبويب آخر.</div>
+              </div>
+              <div class="st-row-action">
+                <button type="button" role="switch" class="st-switch active" id="cfg-switch-notif" aria-checked="true">
+                  <span class="st-switch-thumb"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 6. Panel: التحكم في البيانات (Data Controls) -->
+          <div class="st-panel hidden" id="st-panel-datacontrols">
+            <div class="st-section-title"><span>التحكم في البيانات والخصوصية</span></div>
+            <div class="st-row">
+              <div class="st-row-info">
+                <div class="st-row-title">أرشفة جميع الدردشات</div>
+                <div class="st-row-desc">نقل جميع المحادثات غير المؤرشفة إلى الأرشيف لإخفائها من القائمة الرئيسية.</div>
+              </div>
+              <div class="st-row-action">
+                <button class="adm-btn" type="button" id="btn-archive-all-chats">أرشفة الكل</button>
+              </div>
+            </div>
+            <div class="st-row">
+              <div class="st-row-info">
+                <div class="st-row-title" style="color:#e5484d;">حذف جميع الدردشات</div>
+                <div class="st-row-desc">مسح دائم لجميع المحادثات من قاعدة بيانات SQLite على جهازك. لا يمكن التراجع عن هذه العملية.</div>
+              </div>
+              <div class="st-row-action">
+                <button class="adm-btn adm-btn-danger" type="button" id="btn-delete-all-data">حذف الكل</button>
+              </div>
+            </div>
+            <div class="st-row">
+              <div class="st-row-info">
+                <div class="st-row-title">تصدير البيانات</div>
+                <div class="st-row-desc">تنزيل نسخة احتياطية كاملة من جميع المشروعات والمحادثات المخزنة بصيغة JSON.</div>
+              </div>
+              <div class="st-row-action">
+                <button class="adm-btn" type="button" id="btn-export-chats">تصدير</button>
+              </div>
+            </div>
+            <div class="st-row" style="border-bottom:none;padding-top:6px;">
+              <div class="st-row-info">
+                <div style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                  <span>بياناتك ومحادثاتك محفوظة محلياً على جهازك في قاعدة بيانات <strong>SQLite (mada.db)</strong>.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 7. Panel: الحساب (Account) -->
+          <div class="st-panel hidden" id="st-panel-account">
+            <div class="st-section-title"><span>الحساب والاشتراك</span></div>
+            <div class="st-row">
+              <div class="st-row-info">
+                <div class="st-row-title">الاسم المسجل</div>
+                <div class="st-row-desc" id="st-acc-name-label">سامي صالح</div>
+              </div>
+              <div class="st-row-action">
+                <button class="adm-btn" type="button" id="btn-acc-edit-profile">تعديل الملف</button>
+              </div>
+            </div>
+            <div class="st-row">
+              <div class="st-row-info">
+                <div class="st-row-title">الخطة الحالية</div>
+                <div class="st-row-desc" id="st-acc-plan-label">المجانية</div>
+              </div>
+              <div class="st-row-action">
+                <button class="adm-btn adm-btn-accent" type="button" id="btn-acc-upgrade">ترقية إلى Plus</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 8. Panel: لوحة المفاتيح (Keyboard) -->
+          <div class="st-panel hidden" id="st-panel-keyboard">
+            <div class="st-section-title"><span>اختصارات لوحة المفاتيح</span></div>
+            <table class="adm-shortcut-table">
+              <tbody>
+                <tr>
+                  <td>البحث السريع في المحادثات</td>
+                  <td style="text-align:left"><kbd>Ctrl</kbd> + <kbd>K</kbd></td>
+                </tr>
+                <tr>
+                  <td>بدء محادثة جديدة</td>
+                  <td style="text-align:left"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>O</kbd></td>
+                </tr>
+                <tr>
+                  <td>إرسال الرسالة</td>
+                  <td style="text-align:left"><kbd>Enter</kbd></td>
+                </tr>
+                <tr>
+                  <td>سطر جديد</td>
+                  <td style="text-align:left"><kbd>Shift</kbd> + <kbd>Enter</kbd></td>
+                </tr>
+                <tr>
+                  <td>فتح الإعدادات</td>
+                  <td style="text-align:left"><kbd>Ctrl</kbd> + <kbd>,</kbd></td>
+                </tr>
+                <tr>
+                  <td>إغلاق القوائم والنوافذ</td>
+                  <td style="text-align:left"><kbd>Esc</kbd></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- ================= الذاكرة والتصحيحات ================= -->
+          <div class="st-panel hidden" id="st-panel-memory">
+            <div class="st-section-title"><span>الذاكرة والتصحيحات</span></div>
+
+            <div class="mem-manager">
+              <div class="mem-toolbar">
+                <div class="mem-toolbar-info">
+                  <b>ما فائدتها؟</b> كل تصحيح تحفظه (من زر «صحّح الرد» أو من هنا) يُحقن في ترويسة النموذج مع كل إجابة، وتُطبَّق الاستبدالات تلقائياً على أي نص يعيد الخطأ. تعدّل هنا أي تصحيح أو تحذفه أو تضيفه يدوياً.
+                </div>
+              </div>
+
+              <div class="mem-toolbar">
+                <div class="mem-toolbar-info" style="flex:1;min-width:0">
+                  <b id="mem-count">0 تصحيحات</b> — تظهر التصحيحات الأحدث أولاً ويسري مفعولها على كل المحادثات.
+                </div>
+                <button class="adm-btn adm-btn-accent" type="button" id="btn-mem-add">+ إضافة تصحيح</button>
+              </div>
+
+              <div id="mem-new-form" class="mem-form" style="display:none">
+                <div class="mem-form-title">إضافة تصحيح جديد</div>
+                <div class="mem-form-grid">
+                  <div class="mem-field">
+                    <label for="mem-new-kind">النوع</label>
+                    <select class="st-select" id="mem-new-kind" style="width:100%">
+                      <option value="term">مصطلح (استبدال)</option>
+                      <option value="rule">قاعدة (إلزام أسلوب)</option>
+                    </select>
+                  </div>
+                  <div class="mem-field">
+                    <label for="mem-new-subject">المصطلح الصواب / عنوان القاعدة</label>
+                    <input class="st-input" id="mem-new-subject" type="text" placeholder="مثال: لوغاريتم الأرجحية">
+                  </div>
+                  <div class="mem-field">
+                    <label for="mem-new-wrong">الصيغة الخاطئة المكررة</label>
+                    <input class="st-input" id="mem-new-wrong" type="text" placeholder="مثال: الاحتمالي اللوغاريتمي">
+                  </div>
+                  <div class="mem-field" style="grid-column:1/-1">
+                    <label for="mem-new-note">ملاحظة / نص القاعدة التفصيلي</label>
+                    <textarea class="st-textarea" id="mem-new-note" placeholder="مثال: عند الترجمة استخدم هذا المصطلح لما يقابل term-scaled odds"></textarea>
+                  </div>
+                </div>
+                <div class="mem-form-actions">
+                  <button class="adm-btn adm-btn-primary" type="button" id="btn-mem-save-new">حفظ التصحيح</button>
+                  <button class="adm-btn" type="button" id="btn-mem-cancel-new">إلغاء</button>
+                </div>
+              </div>
+
+              <div id="mem-list" class="mem-manager"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 5. Help Modal -->
+<div id="modal-help" class="app-dialog-modal hidden" role="dialog" aria-modal="true" aria-labelledby="mh-title">
+  <div class="adm-backdrop" data-close="modal-help"></div>
+  <div class="adm-dialog">
+    <div class="adm-header">
+      <div class="adm-title" id="mh-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="4.93" y1="4.93" x2="9.17" y2="9.17"/><line x1="14.83" y1="14.83" x2="19.07" y2="19.07"/><line x1="14.83" y1="9.17" x2="19.07" y2="4.93"/><line x1="4.93" y1="19.07" x2="9.17" y2="14.83"/></svg>
+        <span>المساعدة واختصارات لوحة المفاتيح</span>
+      </div>
+      <button class="adm-close" type="button" data-close="modal-help" title="إغلاق">✕</button>
+    </div>
+    <div class="adm-body">
+      <table class="adm-shortcut-table">
+        <tbody>
+          <tr>
+            <td>البحث السريع في المحادثات</td>
+            <td style="text-align:left"><kbd>Ctrl</kbd> + <kbd>K</kbd></td>
+          </tr>
+          <tr>
+            <td>بدء محادثة جديدة</td>
+            <td style="text-align:left"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>O</kbd></td>
+          </tr>
+          <tr>
+            <td>إرسال الرسالة</td>
+            <td style="text-align:left"><kbd>Enter</kbd></td>
+          </tr>
+          <tr>
+            <td>سطر جديد داخل حقل الكتابة</td>
+            <td style="text-align:left"><kbd>Shift</kbd> + <kbd>Enter</kbd></td>
+          </tr>
+          <tr>
+            <td>إغلاق النوافذ والقوائم</td>
+            <td style="text-align:left"><kbd>Esc</kbd></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="adm-footer">
+      <button class="adm-btn adm-btn-primary" type="button" data-close="modal-help">حسناً فهمت</button>
+    </div>
+  </div>
+</div>
+
+<!-- 6. Logout Modal -->
+<div id="modal-logout" class="app-dialog-modal hidden" role="dialog" aria-modal="true" aria-labelledby="mlo-title">
+  <div class="adm-backdrop" data-close="modal-logout"></div>
+  <div class="adm-dialog" style="max-width:420px;">
+    <div class="adm-header">
+      <div class="adm-title" id="mlo-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e5484d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        <span>تسجيل الخروج</span>
+      </div>
+      <button class="adm-close" type="button" data-close="modal-logout" title="إغلاق">✕</button>
+    </div>
+    <div class="adm-body">
+      <p style="font-size:14px;color:var(--text);line-height:1.5;">هل أنت متأكد من رغبتك في تسجيل الخروج من حساب <strong id="logout-confirm-name">سامي صالح</strong>؟</p>
+    </div>
+    <div class="adm-footer">
+      <button class="adm-btn" type="button" data-close="modal-logout">إلغاء</button>
+      <button class="adm-btn adm-btn-danger" id="btn-confirm-logout" type="button">تسجيل الخروج</button>
+    </div>
+  </div>
+</div>
+
+<!-- 7. Temporary Chat Modal (ChatGPT Style) -->
+<div id="modal-temp-chat" class="app-dialog-modal hidden" role="dialog" aria-modal="true" aria-labelledby="mtc-title">
+  <div class="adm-backdrop" data-close="modal-temp-chat"></div>
+  <div class="adm-dialog" style="max-width:480px;border-radius:24px;padding:26px 24px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
+      <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,rgba(59,130,246,0.2),rgba(147,51,234,0.2));display:flex;align-items:center;justify-content:center;color:var(--accent);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.912 5.885a2 2 0 0 0 1.203 1.203L21 12l-5.885 1.912a2 2 0 0 0-1.203 1.203L12 21l-1.912-5.885a2 2 0 0 0-1.203-1.203L3 12l5.885-1.912a2 2 0 0 0 1.203-1.203L12 3z"/></svg>
+      </div>
+      <button class="adm-close" type="button" data-close="modal-temp-chat" title="إغلاق">✕</button>
+    </div>
+    <div style="font-size:20px;font-weight:700;color:var(--text);margin-bottom:8px;" id="mtc-title">دردشة مؤقتة</div>
+    <div style="font-size:13.5px;color:var(--muted);line-height:1.55;margin-bottom:20px;">
+      لن تظهر هذه الدردشة في السجل ولا تُحفظ على جهازك أو في قاعدة البيانات، وستُمسح نهائياً بمجرد إغلاق المتصفح.
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--panel-hover);border-radius:14px;margin-bottom:22px;">
+      <span style="font-size:13.5px;color:var(--text);font-weight:500;">السماح باستخدام ملفاتك في هذه الدردشة</span>
+      <button type="button" role="switch" class="st-switch active" id="sw-temp-use-files" aria-checked="true">
+        <span class="st-switch-thumb"></span>
+      </button>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;">
+      <button class="adm-btn" type="button" data-close="modal-temp-chat">إلغاء</button>
+      <button class="adm-btn adm-btn-primary" type="button" id="btn-confirm-start-temp" style="border-radius:999px;padding:8px 24px;">المتابعة</button>
+    </div>
+  </div>
+</div>
+
+<!-- 8. Create / Edit Project Modal (Matching Screenshots 4 & 5) -->
+<div id="modal-project" class="app-dialog-modal hidden" role="dialog" aria-modal="true" aria-labelledby="mp-modal-title">
+  <div class="adm-backdrop" data-close="modal-project"></div>
+  <div class="adm-dialog adm-project-dialog">
+    <div class="mp-header">
+      <div class="mp-title" id="mp-modal-title">إنشاء مشروع</div>
+      <button class="adm-close" type="button" data-close="modal-project" title="إغلاق">✕</button>
+    </div>
+    
+    <div class="mp-body">
+      <input type="hidden" id="mp-input-id" value="">
+      
+      <!-- Label -->
+      <label class="mp-label" for="mp-input-name">اسم المشروع</label>
+      
+      <!-- Name Input with embedded Icon/Color Picker Trigger -->
+      <div class="mp-input-wrap">
+        <input type="text" class="mp-input" id="mp-input-name" placeholder="رحلة كوبنهاغن" autocomplete="off">
+        <button type="button" class="mp-icon-trigger" id="btn-proj-picker-trigger" title="اختيار اللون والأيقونة">
+          <span class="mp-icon-preview" id="mp-preview-badge" style="background:#10a37f;color:#fff;">
+            <svg id="mp-preview-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          </span>
+        </button>
+        
+        <!-- Floating Color & Icon Popover Picker (Matching Screenshot 5) -->
+        <div class="proj-picker-popover hidden" id="proj-picker-popover">
+          <!-- Colors Grid -->
+          <div class="pip-colors-section">
+            <div class="pip-colors-row">
+              <button type="button" class="pip-color-dot" data-color="#10a37f" style="background:#10a37f;" title="أخضر"></button>
+              <button type="button" class="pip-color-dot" data-color="#f59e0b" style="background:#f59e0b;" title="أصفر"></button>
+              <button type="button" class="pip-color-dot" data-color="#f97316" style="background:#f97316;" title="برتقالي"></button>
+              <button type="button" class="pip-color-dot" data-color="#ef4444" style="background:#ef4444;" title="أحمر"></button>
+              <button type="button" class="pip-color-dot" data-color="#ffffff" style="background:#ffffff;border:1px solid #999;" title="أبيض"></button>
+            </div>
+            <div class="pip-colors-row" style="margin-top:8px;">
+              <button type="button" class="pip-color-dot" data-color="#ec4899" style="background:#ec4899;" title="وردي"></button>
+              <button type="button" class="pip-color-dot" data-color="#8b5cf6" style="background:#8b5cf6;" title="بنفسجي"></button>
+              <button type="button" class="pip-color-dot selected" data-color="#3b82f6" style="background:#3b82f6;" title="أزرق"></button>
+            </div>
+            
+            <!-- Custom color row with rainbow gradient -->
+            <div class="pip-custom-color-row">
+              <span class="pip-custom-label">لون مخصص</span>
+              <label class="pip-rainbow-circle" title="اختر لوناً مخصصاً">
+                <input type="color" id="pip-custom-color-input" value="#3b82f6" style="opacity:0;position:absolute;pointer-events:none;">
+              </label>
+            </div>
+          </div>
+          
+          <div class="pip-divider"></div>
+          
+          <!-- Icons Grid (25+ SVGs matching Screenshot 5) -->
+          <div class="pip-icons-grid" id="pip-icons-grid"></div>
+        </div>
+      </div>
+      
+      <!-- Info Box with Lightbulb icon -->
+      <div class="mp-info-box">
+        <svg class="mp-info-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+        <span class="mp-info-text">تحتفظ المشروعات بالدردشات والملفات والتعليمات المخصصة في مكان واحد. يمكنك استخدامها لمساعدتك في العمل، أو لتنظيم أفكارك.</span>
+      </div>
+      
+      <!-- Accordion: Default Memory -->
+      <div class="mp-accordion-row" id="mp-accordion-memory">
+        <span>الذاكرة الافتراضية</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+    </div>
+    
+    <div class="mp-footer">
+      <button class="mp-submit-btn" id="btn-submit-project" type="button" disabled>إنشاء مشروع</button>
+    </div>
+  </div>
+</div>
+
+<!-- 9. Move Chat to Project Modal -->
+<div id="modal-move-chat" class="app-dialog-modal hidden" role="dialog" aria-modal="true" aria-labelledby="mmc-title">
+  <div class="adm-backdrop" data-close="modal-move-chat"></div>
+  <div class="adm-dialog" style="max-width:420px;border-radius:20px;padding:22px;">
+    <div class="adm-header" style="margin-bottom:14px;">
+      <div class="adm-title" id="mmc-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        <span>نقل المحادثة إلى مشروع</span>
+      </div>
+      <button class="adm-close" type="button" data-close="modal-move-chat" title="إغلاق">✕</button>
+    </div>
+    <div class="adm-body" style="padding:0;">
+      <div id="move-chat-projects-list" style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto;"></div>
+    </div>
+  </div>
+</div>
+
+
+<script src="/static/katex/katex.min.js"></script>
+<script src="/static/js/utils.js"></script>
+<script src="/static/js/state.js"></script>
+<script src="/static/js/storage.js"></script>
+<script src="/static/js/settings.js"></script>
+<script src="/static/js/markdown.js"></script>
+<script src="/static/js/render.js"></script>
+<script src="/static/js/sidebar.js"></script>
+<script src="/static/js/projects.js"></script>
+<script src="/static/js/chat.js"></script>
+<script src="/static/js/files.js"></script>
+<script src="/static/js/app.js"></script>
+<script src="/static/js/persist.js"></script>
+<script src="/static/js/learning.js"></script>
+</body>
+</html>
