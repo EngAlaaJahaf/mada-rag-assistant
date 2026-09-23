@@ -6,6 +6,9 @@ uploads/
 index_data/
 bg_config.json
 model_config.json
+.bgelev
+.bgelevhb
+.bgagepid
 venv/
 .venv/
 env/

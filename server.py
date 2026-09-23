@@ -873,8 +873,37 @@ def pick_model_file(kind):
 
 
 # ── المشرف الخلفي (الوكيل الصامت) + خيط الحراسة ──
+AGENT_PID = os.path.join(ROOT, ".bgagepid")
+
+
+def _read_agent_pid():
+    try:
+        if os.path.isfile(AGENT_PID):
+            v = int(open(AGENT_PID, "r").read().strip() or "-1")
+            return v if v > 0 else None
+    except Exception:
+        pass
+    return None
+
+
+def _agent_alive():
+    """يتحقق من الوكيل عبر ملفه PID — يعمل مهما كانت الصلاحيات (مرفوعاً أو عادياً)."""
+    if _agent_proc is not None and _agent_proc.poll() is None:
+        return True
+    pid = _read_agent_pid()
+    if not pid:
+        return False
+    try:
+        r = subprocess.run(
+            'powershell -NoProfile -Command "((Get-Process -Id %d -ErrorAction SilentlyContinue).Name -eq \'pythonw\')" ' % pid,
+            shell=True, capture_output=True, text=True, timeout=15,
+        )
+        return "true" in r.stdout.lower()
+    except Exception:
+        return False
+
+
 def _kill_stale_agents():
-    """يضمن مثيلاً واحداً فقط من الوكيل مهما تعددت إعادة التشغيل."""
     try:
         subprocess.run(
             'powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \'Name like \\\"pythonw%\\\"\' | Where-Object { $_.CommandLine -like \\\"*background_agent.py*\\\" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"',
@@ -889,9 +918,10 @@ def start_background_agent():
     cfg = load_bg_config()
     if not cfg.get("enabled", True):
         return
-    _kill_stale_agents()
-    if _agent_proc is not None and _agent_proc.poll() is None:
+    if _agent_alive():
+        _agent_proc = None
         return
+    _kill_stale_agents()
     script = os.path.join(ROOT, "background_agent.py")
     if not os.path.isfile(script):
         return
@@ -922,8 +952,7 @@ def _watchdog_loop():
         cfg = load_bg_config()
         if not cfg.get("enabled", True):
             continue
-        if _agent_proc is None or _agent_proc.poll() is not None:
-            start_background_agent()
+        start_background_agent()
 
 
 def stream_llm(messages, temperature=0.6, max_tokens=600, endpoint=None, model=None, api_key=None):

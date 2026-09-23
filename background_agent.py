@@ -18,6 +18,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 BG_URL = "http://127.0.0.1:8787/api/bg"
 QUICK_URL = "http://127.0.0.1:8787/api/quick"
 LOG_PATH = os.path.join(ROOT, "bg_agent.log")
+AGENT_PID = os.path.join(ROOT, ".bgagepid")
 
 HS_GENERATE = 0x9001
 HS_REOPEN = 0x9002
@@ -43,6 +44,22 @@ def _log(msg):
     try:
         with open(LOG_PATH, "a", encoding="utf-8") as f:
             f.write("%s %s\n" % (time.strftime("%H:%M:%S"), msg))
+    except Exception:
+        pass
+
+
+def _pid_write():
+    try:
+        with open(AGENT_PID, "w") as f:
+            f.write(str(os.getpid()))
+    except Exception:
+        pass
+
+
+def _pid_clear():
+    try:
+        if os.path.isfile(AGENT_PID):
+            os.remove(AGENT_PID)
     except Exception:
         pass
 
@@ -370,6 +387,7 @@ class TkLoop:
                     self.root, item.get("text", ""), self.settings,
                     lambda: None,
                 )
+                _log("عرض التوست: " + (item.get("text") or "")[:40])
         self.root.after(60, self._poll)
 
 
@@ -453,6 +471,10 @@ def build_toast_dict(text, err=False):
 
 
 def main():
+    # الصلاحية تأتي من الخادم: إن شُغّل الخادم كمسؤول ورث الوكيلُ والنافذةُ الصلاحية
+    # فتظهر فوق أي تطبيق (حتى المرفوع). وإلا عمل كالمعتاد فوق التطبيقات العادية.
+    _pid_write()
+
     settings = Settings()
     st = _bg_state
     q_ui = queue.Queue()
@@ -470,12 +492,14 @@ def main():
 
     # لو أُطفئ من البداية
     if settings.get("enabled", True) is False:
+        _pid_clear()
         q_ui.put({"kind": "exit"})
         return
 
     hwnd = make_hidden_window()
     if not hwnd:
         _log("فشل إنشاء نافذة الرسائل")
+        _pid_clear()
         q_ui.put({"kind": "exit"})
         return
 
@@ -493,6 +517,7 @@ def main():
         st["hi"] = (settings.get("hotkey", ""), settings.get("reopen_hotkey", ""))
 
     def on_generate():
+        _log("اختصار التوليد مضغوط")
         threading.Thread(target=generate_worker, daemon=True).start()
 
     def generate_worker():
@@ -500,13 +525,17 @@ def main():
             apply_hotkeys()
         text = capture_selection()
         if text is None:
+            _log("لا يوجد نص محدد في الحافظة")
             q_ui.put(build_toast_dict("لم يتم تحديد أي نص", err=True))
             return
+        _log("التقط النص: %d حرف" % len(text))
         answer, err = post_quick(text, settings)
         if answer:
             last["answer"] = answer
+            _log("تم التوليد: " + answer[:40])
             q_ui.put(build_toast_dict(answer))
         else:
+            _log("فشل الجيل: " + (err or "تعذر توليد الرد")[:60])
             q_ui.put(build_toast_dict(err or "تعذر توليد الرد", err=True))
 
     def on_reopen():
@@ -516,6 +545,7 @@ def main():
             q_ui.put(build_toast_dict("لا يوجد رد سابق", err=True))
 
     def on_refresh():
+        _pid_write()
         if settings.load():
             hi = st.get("hi")
             cur = (settings.get("hotkey", ""), settings.get("reopen_hotkey", ""))
@@ -523,9 +553,11 @@ def main():
                 apply_hotkeys()
             if settings.get("enabled", True) is False:
                 _log("تم إيقاف البوب-أب من الإعدادات")
+                _pid_clear()
                 q_ui.put({"kind": "exit"})
                 ctypes.windll.user32.PostQuitMessage(0)
             elif settings.fail_streak >= 12:  # ~24 ثانية بلا خادم
+                _pid_clear()
                 q_ui.put({"kind": "exit"})
                 ctypes.windll.user32.PostQuitMessage(0)
 
