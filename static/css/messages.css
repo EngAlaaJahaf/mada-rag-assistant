@@ -165,43 +165,60 @@ html[data-theme='dark'] .md tbody tr:nth-child(even){background:rgba(255,255,255
 .m-act-btn:hover{background:var(--panel-hover);color:var(--text)}
 .m-act-btn.active{color:var(--accent)}
 
-/* Minimap Navigator & Popover (Images 1 & 2) */
+/* Minimap Navigator & Popover (Turn Scrubber - Matching Reference) */
 #minimap{
-  position:absolute;left:18px;top:50%;transform:translateY(-50%);
-  z-index:25;display:flex;align-items:center;user-select:none;
+  position:absolute;left:12px;top:50%;transform:translateY(-50%);
+  z-index:35;display:flex;align-items:center;user-select:none;
 }
+#minimap.hidden{display:none!important}
 #minimap-ticks{
-  display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 6px;
-  border-radius:999px;cursor:pointer;background:rgba(0,0,0,.02);transition:background .15s;
+  display:flex;flex-direction:column;align-items:center;gap:3.5px;padding:8px 4px;
+  background:transparent!important;border:none!important;box-shadow:none!important;border-radius:0!important;
+  cursor:pointer;
 }
-[data-theme="dark"] #minimap-ticks{background:rgba(255,255,255,.02)}
-#minimap-ticks:hover{background:var(--panel-hover)}
 .mm-tick{
-  width:20px;height:2.5px;background:#c5c5d2;border-radius:2px;
-  transition:all .15s;cursor:pointer;
+  width:14px;height:2px;background:rgba(0,0,0,.22);border-radius:1px;
+  transition:all .15s ease;cursor:pointer;
 }
-.mm-tick:hover{background:var(--text);width:24px}
-.mm-tick.active{background:var(--text);height:3.5px;width:22px}
+[data-theme="dark"] .mm-tick{background:rgba(255,255,255,.22)}
+.mm-tick:hover{background:rgba(0,0,0,.65);width:16px}
+[data-theme="dark"] .mm-tick:hover{background:rgba(255,255,255,.75);width:16px}
+.mm-tick.active{background:#0d0d0d;width:16px;height:2px}
+[data-theme="dark"] .mm-tick.active{background:#ffffff;width:16px;height:2px}
+
 #minimap-popover{
-  position:absolute;left:calc(100% + 12px);top:50%;transform:translateY(-50%);
-  width:290px;max-height:420px;background:var(--bg);border:1px solid var(--border);
-  border-radius:16px;box-shadow:0 10px 32px rgba(0,0,0,.15);padding:10px;
-  overflow-y:auto;z-index:30;display:none;
+  position:absolute;left:100%;top:50%;
+  transform:translateY(-50%);
+  width:290px;max-height:400px;background:#ffffff;border:1px solid rgba(0,0,0,.08);
+  border-radius:16px;box-shadow:0 12px 32px rgba(0,0,0,.12),0 2px 8px rgba(0,0,0,.04);
+  padding:6px;overflow-y:auto;z-index:40;
+  opacity:0;visibility:hidden;pointer-events:none;
+  transition:opacity .15s ease,visibility .15s ease;
 }
-#minimap-popover.open{display:block}
-.mm-pop-title{
-  font-size:11.5px;font-weight:700;color:var(--muted);padding:2px 8px 6px;
-  border-bottom:1px solid var(--border);margin-bottom:6px;text-align:right;
+[data-theme="dark"] #minimap-popover{
+  background:#212121;border:1px solid rgba(255,255,255,.12);
+  box-shadow:0 14px 38px rgba(0,0,0,.55),0 2px 10px rgba(0,0,0,.35);
 }
+#minimap-popover.open{
+  opacity:1;visibility:visible;pointer-events:auto;
+}
+#minimap-popover::before{
+  content:'';position:absolute;top:-20px;bottom:-20px;left:-24px;width:30px;background:transparent;
+}
+#minimap-popover::-webkit-scrollbar{width:4px}
+#minimap-popover::-webkit-scrollbar-thumb{background:rgba(0,0,0,.16);border-radius:4px}
+[data-theme="dark"] #minimap-popover::-webkit-scrollbar-thumb{background:rgba(255,255,255,.2)}
+#minimap-popover::-webkit-scrollbar-track{background:transparent}
+
+.mm-pop-title{display:none!important}
 .mm-item{
-  padding:7px 10px;border-radius:8px;font-size:13px;line-height:1.4;
-  color:var(--text);cursor:pointer;margin-bottom:3px;white-space:nowrap;
-  overflow:hidden;text-overflow:ellipsis;text-align:right;transition:background .12s;
+  padding:8px 12px;border-radius:8px;font-size:13px;line-height:1.45;
+  color:var(--text);cursor:pointer;margin-bottom:2px;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;text-align:right;background:transparent;
+  transition:background .12s ease,color .12s ease;
 }
 .mm-item:hover{background:var(--panel-hover)}
 .mm-item.active{background:var(--panel-active);font-weight:600}
-.mm-item.is-asst{background:var(--panel-hover);color:var(--text2);font-size:12.5px}
-.mm-item.is-asst:hover{background:var(--panel-active)}
 
 /* Search Modal */
 #search-modal{

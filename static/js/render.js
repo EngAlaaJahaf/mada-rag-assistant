@@ -90,48 +90,103 @@ function renderEmpty(show) {
   updateSendDisabled();
 }
 
-/* ================= Minimap Navigator (Images 1 & 2) ================= */
+/* ================= Minimap Navigator (Turn Scrubber - Matching Reference) ================= */
 function updateMinimap() {
   var chat = currentChatId ? getChat(currentChatId) : null;
   var mm = $('minimap');
   var ticksEl = $('minimap-ticks');
   var listEl = $('minimap-list');
   if (!mm || !ticksEl || !listEl) return;
-  if (!chat || chat.messages.length < 2) {
+  if (!chat || !chat.messages || chat.messages.length < 2) {
     mm.classList.add('hidden');
     return;
   }
+
+  var ms = chat.messages;
+  var userIndices = [];
+  for (var i = 0; i < ms.length; i++) {
+    if (ms[i].role === 'user') {
+      userIndices.push(i);
+    }
+  }
+
+  // Use user message turns if available, else all messages
+  var itemsToShow = userIndices.length >= 1 ? userIndices : [];
+  if (itemsToShow.length === 0) {
+    for (var j = 0; j < ms.length; j++) itemsToShow.push(j);
+  }
+
+  if (itemsToShow.length < 2) {
+    mm.classList.add('hidden');
+    return;
+  }
+
   mm.classList.remove('hidden');
   ticksEl.innerHTML = '';
   listEl.innerHTML = '';
-  var ms = chat.messages;
-  for (var i = 0; i < ms.length; i++) {
-    var m = ms[i];
-    var isAsst = m.role === 'assistant';
-    var textSnippet = m.content.replace(/```[\s\S]*?```/g, 'code').replace(/[#*`_]/g, '').trim().slice(0, 48);
-    
-    var tick = el('div', 'mm-tick' + (i === 0 ? ' active' : ''));
-    tick.dataset.idx = i;
+
+  for (var k = 0; k < itemsToShow.length; k++) {
+    var msgIdx = itemsToShow[k];
+    var m = ms[msgIdx];
+    var rawText = (m.content || '')
+      .replace(/```[\s\S]*?```/g, '')
+      .replace(/[#*`_~]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    var textSnippet = rawText.slice(0, 52);
+    if (!textSnippet) {
+      textSnippet = 'File upload';
+    }
+
+    var tick = el('div', 'mm-tick' + (k === 0 ? ' active' : ''));
+    tick.dataset.idx = msgIdx;
     ticksEl.appendChild(tick);
 
-    var item = el('div', 'mm-item' + (isAsst ? ' is-asst' : '') + (i === 0 ? ' active' : ''), esc(textSnippet || 'رسالة'));
-    item.dataset.idx = i;
+    var item = el('div', 'mm-item' + (k === 0 ? ' active' : ''), esc(textSnippet));
+    item.dataset.idx = msgIdx;
+    item.title = rawText;
     listEl.appendChild(item);
   }
 }
 
 function scrollMsgIntoView(idx) {
-  var cards = msgsEl.querySelectorAll('.msg');
-  if (cards[idx]) {
-    cards[idx].scrollIntoView({ behavior: 'smooth', block: 'center' });
+  var card = msgsEl.querySelector('.msg[data-msg-idx="' + idx + '"]') || msgsEl.querySelectorAll('.msg')[idx];
+  if (card) {
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
     highlightMinimapTick(idx);
   }
 }
 
-function highlightMinimapTick(idx) {
+function highlightMinimapTick(msgIdx) {
   var ticks = document.querySelectorAll('.mm-tick');
   var items = document.querySelectorAll('.mm-item');
-  ticks.forEach(function(t, i) { t.classList.toggle('active', i === idx); });
-  items.forEach(function(it, i) { it.classList.toggle('active', i === idx); });
+  if (!ticks.length) return;
+
+  var matchedIdx = -1;
+  for (var i = 0; i < ticks.length; i++) {
+    var tIdx = parseInt(ticks[i].dataset.idx, 10);
+    if (tIdx === msgIdx) {
+      matchedIdx = i;
+      break;
+    }
+  }
+
+  if (matchedIdx === -1) {
+    for (var j = 0; j < ticks.length; j++) {
+      if (parseInt(ticks[j].dataset.idx, 10) <= msgIdx) {
+        matchedIdx = j;
+      }
+    }
+    if (matchedIdx === -1) matchedIdx = 0;
+  }
+
+  ticks.forEach(function(t, i) { t.classList.toggle('active', i === matchedIdx); });
+  items.forEach(function(it, i) {
+    it.classList.toggle('active', i === matchedIdx);
+    if (i === matchedIdx) {
+      try { it.scrollIntoView({ block: 'nearest' }); } catch (e) {}
+    }
+  });
 }
 

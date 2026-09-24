@@ -152,8 +152,8 @@ body:not(.is-empty) .care{display:block}
   width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
   transition:opacity .15s,transform .1s;flex:0 0 auto;
 }
-.c-voice-btn{background:#0066cc;color:#ffffff}
-.c-voice-btn:hover{opacity:.9;transform:scale(1.05)}
+.c-voice-btn{background:var(--accent,#0066cc);color:#ffffff}
+.c-voice-btn:hover{background:var(--accent-hover,#0052a3);opacity:.95;transform:scale(1.05)}
 .c-send-btn{background:var(--btn-core);color:var(--btn-core-ink)}
 .c-send-btn:hover{opacity:.88;transform:scale(1.05)}
 .c-stop-btn{background:#e5484d;color:#ffffff}

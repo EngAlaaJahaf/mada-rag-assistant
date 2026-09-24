@@ -17,6 +17,7 @@ import subprocess
 import queue
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs, unquote
+import ctypes
 
 for _s in (sys.stdout, sys.stderr):
     if _s is not None:
@@ -33,7 +34,7 @@ import openpyxl
 from pypdf import PdfReader
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(sys.executable if getattr(sys, "frozen", False) else os.path.abspath(__file__))
 UPLOADS = os.path.join(ROOT, "uploads")
 CHUNKS_PATH = os.path.join(ROOT, "index_data", "chunks.json")
 LOCK = threading.Lock()
@@ -478,7 +479,7 @@ LLM_MODEL_DEFAULT = r"D:\jan\llamacpp\models\Jan-v3.5-4B-Q4_K_XL\model.gguf"
 LLM_EXE = LLM_EXE_DEFAULT
 LLM_MODEL = LLM_MODEL_DEFAULT
 LLM_HOST = "127.0.0.1"
-LLM_PORT = 8080
+LLM_PORT = 8081
 LLM_MAX_TOKENS = 450
 LLM_CTX = 2048
 LLM_NGL = 0
@@ -486,6 +487,10 @@ LLM_THREADS = 0
 
 _gen_lock = threading.Lock()
 _procs = []
+_llm_proc = None
+_llm_start_lock = threading.RLock()
+_llm_error = ""
+LLM_LOG_PATH = os.path.join(ROOT, "llama-server.log")
 _agent_proc = None
 
 BG_PATH = os.path.join(ROOT, "bg_config.json")
@@ -501,11 +506,15 @@ DEFAULT_BG = {
     "position": "right",
     "color": "dark",
     "size": "medium",
-    "saveReplies": False,
+    "custom_width": None,
+    "custom_height": None,
+    "custom_x": None,
+    "custom_y": None,
+    "saveReplies": True,
 }
 
 DEFAULT_MODEL = {
-    "spec": "low",
+    "spec": "auto",
     "exe": LLM_EXE_DEFAULT,
     "model": LLM_MODEL_DEFAULT,
 }
@@ -515,7 +524,7 @@ BG_CHOICES = {
     "length": ("short", "medium", "detailed"),
     "position": ("left", "center", "right"),
     "color": ("dark", "light"),
-    "size": ("small", "medium", "wide"),
+    "size": ("small", "medium", "wide", "custom"),
 }
 
 
@@ -546,11 +555,42 @@ def sanitize_bg(data):
         if k in data:
             out[k] = bool(data[k])
     d = data.get("duration")
-    if isinstance(d, (int, float)):
-        out["duration"] = max(1, min(30, int(d)))
+    if d is not None:
+        try:
+            val = float(d)
+            clamped = max(0.1, min(30.0, val))
+            out["duration"] = round(clamped, 2) if clamped % 1 != 0 else int(clamped)
+        except (ValueError, TypeError):
+            pass
     for k, allowed in BG_CHOICES.items():
         if k in data and str(data[k]) in allowed:
             out[k] = str(data[k])
+    for dim_k, (min_v, max_v) in (("custom_width", (240, 1920)), ("custom_height", (140, 1200))):
+        if dim_k in data:
+            v = data.get(dim_k)
+            if v is None:
+                out[dim_k] = None
+            else:
+                try:
+                    val = int(v)
+                    out[dim_k] = max(min_v, min(max_v, val))
+                except (ValueError, TypeError):
+                    pass
+    # حفظ موضع النافذة (x, y) في حدود معقولة
+    for pos_k, (min_v, max_v) in (("custom_x", (-200, 3840)), ("custom_y", (-200, 2160))):
+        if pos_k in data:
+            v = data.get(pos_k)
+            if v is None:
+                out[pos_k] = None
+            else:
+                try:
+                    val = int(v)
+                    out[pos_k] = max(min_v, min(max_v, val))
+                except (ValueError, TypeError):
+                    pass
+    if out.get("size") != "custom" and "size" in data and data["size"] in ("small", "medium", "wide"):
+        out["custom_width"] = None
+        out["custom_height"] = None
     for k in ("hotkey", "reopen_hotkey"):
         v = str(data.get(k) or "").strip()
         if v and len(v) <= 32 and re.fullmatch(r"[A-Za-z0-9+ ]+", v):
@@ -560,12 +600,106 @@ def sanitize_bg(data):
     return out
 
 
-MODEL_MTOKENS = {"low": 150, "medium": 300, "full": 450}
+MODEL_MTOKENS = {"auto": 600, "low": 300, "medium": 450, "full": 600}
 SPEC_PARAMS = {
-    "low": {"ctx": 2048, "ngl": 0},
-    "medium": {"ctx": 4096, "ngl": 8},
+    "auto": {"ctx": 8192, "ngl": 99},
+    "low": {"ctx": 4096, "ngl": 0},
+    "medium": {"ctx": 4096, "ngl": 24},
     "full": {"ctx": 8192, "ngl": 99},
 }
+
+
+def detect_system_hardware():
+    """يكتشف مواصفات الجهاز الحالي (الرام، الأنوية، كارت الشاشة NVIDIA وحجم الذاكرة)."""
+    hw = {
+        "gpu_name": None,
+        "gpu_vram_mb": 0,
+        "has_nvidia": False,
+        "ram_total_gb": 8.0,
+        "ram_free_gb": 4.0,
+        "cpu_cores": os.cpu_count() or 4,
+    }
+    try:
+        class _MEM(ctypes.Structure):
+            _fields_ = [
+                ("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+                ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+                ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
+                ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
+                ("sullAvailExtendedVirtual", ctypes.c_ulonglong),
+            ]
+        m = _MEM()
+        m.dwLength = ctypes.sizeof(_MEM)
+        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m)):
+            hw["ram_total_gb"] = round(m.ullTotalPhys / (1024**3), 1)
+            hw["ram_free_gb"] = round(m.ullAvailPhys / (1024**3), 1)
+    except Exception:
+        pass
+
+    try:
+        r = subprocess.run(
+            ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=2, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            line = r.stdout.strip().splitlines()[0]
+            parts = [p.strip() for p in line.split(",")]
+            hw["gpu_name"] = parts[0]
+            hw["gpu_vram_mb"] = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0
+            hw["has_nvidia"] = True
+    except Exception:
+        pass
+
+    return hw
+
+
+def derive_auto_specs(hw=None, exe_path=""):
+    """يشتق أفضل إعدادات أداء ديناميكية (سياق، طبقات GPU، خيوط) وفق عتاد الجهاز."""
+    if hw is None:
+        hw = detect_system_hardware()
+    vram = hw.get("gpu_vram_mb", 0)
+    ram = hw.get("ram_total_gb", 8.0)
+    cores = hw.get("cpu_cores", 4)
+    is_cuda_bin = "cuda" in str(exe_path).lower() if exe_path else hw["has_nvidia"]
+
+    if hw["has_nvidia"] and is_cuda_bin and vram >= 5500:
+        return {
+            "effective_spec": "full",
+            "ngl": 99,
+            "ctx": 8192,
+            "threads": min(8, max(4, cores - 2)),
+            "max_tokens": 600,
+            "reason": f"كارت شاشة قوي ({hw['gpu_name']} - {round(vram/1024, 1)}GB VRAM): تسريع كامل على GPU وسياق 8192 بأعلى سرعة.",
+        }
+    elif hw["has_nvidia"] and is_cuda_bin and vram >= 3500:
+        return {
+            "effective_spec": "medium",
+            "ngl": 24,
+            "ctx": 4096,
+            "threads": min(8, max(4, cores - 2)),
+            "max_tokens": 450,
+            "reason": f"كارت شاشة متوسط ({hw['gpu_name']} - {round(vram/1024, 1)}GB VRAM): تسريع هجين (24 طبقة GPU) وسياق 4096 لموازنة الذاكرة.",
+        }
+    elif hw["has_nvidia"] and is_cuda_bin and vram >= 1800:
+        return {
+            "effective_spec": "low",
+            "ngl": 12,
+            "ctx": 4096,
+            "threads": max(2, cores // 2),
+            "max_tokens": 300,
+            "reason": f"كارت شاشة بذاكرة محدودة ({round(vram/1024, 1)}GB VRAM): ترحيل جزئي خفيف (12 طبقة) وسياق 4096.",
+        }
+    else:
+        rec_threads = max(2, min(8, cores - 1 if cores > 4 else max(2, cores // 2)))
+        rec_ctx = 8192 if ram >= 16.0 else 4096
+        return {
+            "effective_spec": "cpu",
+            "ngl": 0,
+            "ctx": rec_ctx,
+            "threads": rec_threads,
+            "max_tokens": 350,
+            "reason": f"تشغيل آمن على المعالج ({cores} أنوية، {ram}GB RAM): لا يتوفر GPU متوافق، تم ضبط {rec_threads} خيوط وسياق {rec_ctx}.",
+        }
 
 
 def _resolve_threads(spec):
@@ -590,23 +724,90 @@ def load_model_config():
     return out
 
 
+PORTABLE_DIR = os.path.join(ROOT, "portable")
+
+
+def discover_portable_llm():
+    """يبحث عن مشغّل النموذج والنموذج داخل مجلد portable بجوار التطبيق.
+
+    إرجاع (exe, model) إن وُجدا فعلاً، أو (None, None). يُفضَّل المسار المطلق
+    المثبَّت أصلاً (D:\\jan…) ويُستخدم تلقائياً إن وُجد؛ بينما portable حُلّة
+    النسخة المستقلة المنقولة على فلاشة/جهاز آخر دون الحاجة لتعديل يدوي.
+    """
+    exe = os.path.join(PORTABLE_DIR, "llama", "llama-server.exe")
+    if not os.path.isfile(exe):
+        exe = os.path.join(PORTABLE_DIR, "bin", "llama-server.exe")
+    if not os.path.isfile(exe):
+        return None, None
+
+    # النموذج: gguf واحد أو أكبر gguf ضمن مجلد models
+    model = os.path.join(PORTABLE_DIR, "models", "model.gguf")
+    if not os.path.isfile(model):
+        cands = []
+        try:
+            for root, _, files in os.walk(os.path.join(PORTABLE_DIR, "models")):
+                for f in files:
+                    if f.lower().endswith(".gguf"):
+                        p = os.path.join(root, f)
+                        cands.append((os.path.getsize(p), p))
+        except Exception:
+            pass
+        if not cands:
+            return None, None
+        cands.sort(reverse=True)
+        model = cands[0][1]
+
+    return exe, model
+
+
 def get_llm_config():
-    """يرجع إعدادات النموذج المحلية الموحّدة مع اشتقاق بارامترات الأداء."""
+    """يرجع إعدادات النموذج المحلية الموحّدة مع اشتقاق بارامترات الأداء الذكي وفق العتاد."""
     cfg = load_model_config()
-    spec = cfg.get("spec") if cfg.get("spec") in SPEC_PARAMS else "low"
-    p = SPEC_PARAMS[spec]
+    spec = str(cfg.get("spec") if cfg.get("spec") in SPEC_PARAMS else "auto")
     exe = str(cfg.get("exe") or LLM_EXE_DEFAULT).strip() or LLM_EXE_DEFAULT
     model = str(cfg.get("model") or LLM_MODEL_DEFAULT).strip() or LLM_MODEL_DEFAULT
+    # Resolve before changing the child process working directory to its bin folder.
+    exe = os.path.abspath(os.path.join(ROOT, exe))
+    model = os.path.abspath(os.path.join(ROOT, model))
+    # بديل تلقائي محمول: إن لم يجد الملفان في مواضعهما المُهيأة (مثلاً على فلاشة
+    # بلا التثبيت على D:\) فابحث داخل مجلد portable\ بجوار التطبيق كحل مستقل.
+    if not (os.path.isfile(exe) and os.path.isfile(model)):
+        pexe, pmodel = discover_portable_llm()
+        if pexe and pmodel:
+            exe, model = pexe, pmodel
+
+    hw = detect_system_hardware()
+    auto = derive_auto_specs(hw, exe)
+    if spec == "auto":
+        ctx = auto["ctx"]
+        ngl = auto["ngl"]
+        threads = auto["threads"]
+        max_tokens = auto["max_tokens"]
+        effective = auto["effective_spec"]
+        reason = auto["reason"]
+    else:
+        p = SPEC_PARAMS.get(spec, SPEC_PARAMS["full"])
+        ctx = int(cfg.get("ctx") or p["ctx"])
+        ngl = int(cfg.get("ngl") if cfg.get("ngl") is not None else p["ngl"])
+        threads = int(cfg.get("threads") or _resolve_threads(spec))
+        max_tokens = MODEL_MTOKENS.get(spec, 450)
+        effective = spec
+        reason = f"تم الضبط يدوياً ({spec})"
+
     return {
         "spec": spec,
+        "effective_spec": effective,
         "exe": exe,
         "model": model,
         "host": LLM_HOST,
         "port": LLM_PORT,
-        "ctx": int(cfg.get("ctx") or p["ctx"]),
-        "ngl": int(cfg.get("ngl") if cfg.get("ngl") is not None else p["ngl"]),
-        "threads": int(cfg.get("threads") or _resolve_threads(spec)),
-        "max_tokens": MODEL_MTOKENS.get(spec, 150),
+        "ctx": ctx,
+        "ngl": ngl,
+        "threads": threads,
+        "max_tokens": max_tokens,
+        "hardware": hw,
+        "auto_derived": auto,
+        "reason": reason,
     }
 
 
@@ -637,36 +838,53 @@ def _llm_alive():
 
 
 def stop_llm():
-    for p in list(_procs):
-        try:
-            if p and p.poll() is None:
-                p.terminate()
-        except Exception:
-            pass
-    _procs.clear()
+    global _llm_proc
+    with _llm_start_lock:
+        if _llm_proc is not None:
+            try:
+                if _llm_proc.poll() is None:
+                    _llm_proc.terminate()
+                    _llm_proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                _llm_proc.kill()
+                _llm_proc.wait(timeout=5)
+            finally:
+                if _llm_proc in _procs:
+                    _procs.remove(_llm_proc)
+                _llm_proc = None
 
 
 def ensure_llm():
+    global _llm_proc, _llm_error
     if _llm_alive():
         return True
     if not generation_available():
+        _llm_error = "ملف المحرك أو النموذج غير موجود؛ راجع إعدادات النموذج."
         return False
     c = get_llm_config()
-    with _gen_lock:
+    with _llm_start_lock:
         if _llm_alive():
             return True
+        if _llm_proc is not None and _llm_proc.poll() is None:
+            return True
+        if _llm_proc in _procs:
+            _procs.remove(_llm_proc)
         try:
-            proc = subprocess.Popen(
-                [c["exe"], "-m", c["model"],
-                 "--host", LLM_HOST, "--port", str(LLM_PORT),
-                 "--ctx-size", str(c["ctx"]), "-ngl", str(c["ngl"]), "-t", str(c["threads"])],
-                cwd=os.path.dirname(c["exe"]) or None,
-                creationflags=subprocess.CREATE_NO_WINDOW,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            )
+            with open(LLM_LOG_PATH, "w", encoding="utf-8") as log:
+                proc = subprocess.Popen(
+                    [c["exe"], "-m", c["model"],
+                     "--host", LLM_HOST, "--port", str(LLM_PORT),
+                     "--ctx-size", str(c["ctx"]), "-ngl", str(c["ngl"]), "-t", str(c["threads"])],
+                    cwd=os.path.dirname(c["exe"]) or None,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                    stdout=log, stderr=subprocess.STDOUT,
+                )
+            _llm_proc = proc
+            _llm_error = ""
             _procs.append(proc)
             return True
-        except Exception:
+        except Exception as exc:
+            _llm_error = "تعذر تشغيل المحرك: " + str(exc)
             return False
 
 
@@ -709,9 +927,20 @@ def generate_answer(query, results, target_file=None):
     req = urllib.request.Request(
         f"http://{LLM_HOST}:{LLM_PORT}/v1/chat/completions",
         data=data, headers={"Content-Type": "application/json"})
-    with _gen_lock:
-        resp = json.loads(urllib.request.urlopen(req, timeout=300).read().decode("utf-8"))
-    return resp["choices"][0]["message"]["content"].strip()
+    try:
+        with _gen_lock:
+            resp = json.loads(urllib.request.urlopen(req, timeout=300).read().decode("utf-8"))
+        return resp["choices"][0]["message"]["content"].strip()
+    except urllib.error.HTTPError as err:
+        try:
+            err_body = err.read().decode("utf-8", "replace")
+            err_json = json.loads(err_body)
+            msg = err_json.get("error", {}).get("message") or err_json.get("message") or str(err)
+        except Exception:
+            msg = str(err)
+        return f"تعذر التوليد ({err.code}): {msg}"
+    except Exception as e:
+        return f"تعذر التوليد: {e}"
 
 
 # ── بث الإجابات (وضع الشات، بنمط OpenAI streaming) ──
@@ -733,12 +962,32 @@ CHAT_SYSTEM_RAG = (
 
 
 def _ensure_llm_ready():
-    ensure_llm()
-    for _ in range(80):
+    global _llm_error
+    if not ensure_llm():
+        return False
+    deadline = time.monotonic() + 60
+    while time.monotonic() < deadline:
         if _llm_alive():
             return True
+        if _llm_proc is not None and _llm_proc.poll() is not None:
+            _llm_error = "توقف محرك النموذج (exit=%s)." % _llm_proc.returncode
+            return False
         time.sleep(0.5)
-    return _llm_alive()
+    _llm_error = "لم يصبح المحرك جاهزاً خلال 60 ثانية؛ تحقق من الذاكرة والمنفذ 8081."
+    return False
+
+
+def llm_failure_message():
+    detail = ""
+    try:
+        with open(LLM_LOG_PATH, "rb") as log:
+            log.seek(0, os.SEEK_END)
+            log.seek(max(0, log.tell() - 2000))
+            detail = log.read().decode("utf-8", "replace")
+        detail = re.sub(r"\x1b\[[0-9;]*m", "", detail)
+    except OSError:
+        pass
+    return (_llm_error or "النموذج المحلي غير متاح") + "\nالسجل: " + LLM_LOG_PATH + ("\n" + detail if detail else "")
 
 
 # ── البوب-أب السريع (Quick Popup): توليد موجز + محادثة «سريع» ──
@@ -807,9 +1056,10 @@ def quick_store(q, a):
 # ── إدارة إعدادات النموذج + اختيار المسار عبر نافذة ويندوز ──
 def save_model_config(cfg):
     out = load_model_config()
-    spec = str(cfg.get("spec") or out.get("spec") or "low").strip()
+    default_spec = "full" if "cuda" in str(out.get("exe") or LLM_EXE_DEFAULT).lower() else "medium"
+    spec = str(cfg.get("spec") or out.get("spec") or default_spec).strip()
     if spec not in SPEC_PARAMS:
-        spec = out.get("spec") if out.get("spec") in SPEC_PARAMS else "low"
+        spec = out.get("spec") if out.get("spec") in SPEC_PARAMS else default_spec
     out["spec"] = spec
     for k in ("exe", "model"):
         v = str(cfg.get(k) or "").strip()
@@ -820,56 +1070,180 @@ def save_model_config(cfg):
     return out
 
 
-def pick_file_dialog(title, filter_str, initial_dir):
-    """يفتح متصفح ملفات ويندوز الأصلي ويعيد المسار أو None عند الإلغاء."""
+def pick_file_dialog(title, filter_type="exe", initial_dir=None):
+    """يفتح متصفح ملفات ويندوز عبر عملية مساعدة مستقلة دون حظر الخادم، مع مهلة أمان."""
+    helper = os.path.join(ROOT, "file_picker_helper.py")
+    init_dir = initial_dir if (initial_dir and os.path.isdir(initial_dir)) else ROOT
+    if os.path.isfile(helper):
+        try:
+            cmd = [sys.executable, helper, filter_type, init_dir]
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=50)
+            out = (res.stdout or "").strip().splitlines()
+            if out:
+                candidate = out[-1].strip()
+                if candidate and os.path.isfile(candidate):
+                    return os.path.normpath(candidate)
+        except Exception:
+            pass
+
+    # احتياطي مباشر عبر PowerShell STA في عملية منفصلة
     try:
-        import ctypes
-        from ctypes import wintypes
-
-        class OPENFILENAMEW(ctypes.Structure):
-            _fields_ = [
-                ("lStructSize", wintypes.DWORD), ("hwndOwner", wintypes.HWND),
-                ("hInstance", wintypes.HINSTANCE), ("lpstrFilter", wintypes.LPCWSTR),
-                ("lpstrCustomFilter", wintypes.LPWSTR), ("nMaxCustFilter", wintypes.DWORD),
-                ("nFilterIndex", wintypes.DWORD), ("lpstrFile", wintypes.LPWSTR),
-                ("nMaxFile", wintypes.DWORD), ("lpstrFileTitle", wintypes.LPWSTR),
-                ("nMaxFileTitle", wintypes.DWORD), ("lpstrInitialDir", wintypes.LPCWSTR),
-                ("lpstrTitle", wintypes.LPCWSTR), ("Flags", wintypes.DWORD),
-                ("nFileOffset", wintypes.WORD), ("nFileExtension", wintypes.WORD),
-                ("lpstrDefExt", wintypes.LPCWSTR), ("lCustData", wintypes.LPARAM),
-                ("lpfnHook", wintypes.LPVOID), ("lpTemplateName", wintypes.LPCWSTR),
-                ("pvReserved", wintypes.LPVOID), ("dwReserved", wintypes.DWORD),
-                ("FlagsEx", wintypes.DWORD),
-            ]
-
-        ofn = OPENFILENAMEW()
-        buf = ctypes.create_unicode_buffer(4096)
-        ofn.lStructSize = ctypes.sizeof(OPENFILENAMEW)
-        ofn.lpstrFilter = filter_str
-        ofn.lpstrFile = buf
-        ofn.nMaxFile = 4096
-        ofn.lpstrTitle = title
-        ofn.lpstrInitialDir = initial_dir or None
-        ofn.Flags = 0x00001008  # OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST
-        ok = ctypes.windll.comdlg32.GetOpenFileNameW(ctypes.byref(ofn))
-        if ok:
-            return ofn.lpstrFile or None
-        return None
+        flt = "Executables (*.exe)|*.exe|All Files (*.*)|*.*" if filter_type == "exe" else "Model Files (*.gguf)|*.gguf|All Files (*.*)|*.*"
+        safe_title = (title or "اختر ملف").replace("'", "''")
+        safe_dir = init_dir.replace("'", "''")
+        ps_code = (
+            "$ErrorActionPreference = 'SilentlyContinue'; "
+            "[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; "
+            "$f = New-Object System.Windows.Forms.OpenFileDialog; "
+            f"$f.Title = '{safe_title}'; "
+            f"$f.Filter = '{flt}'; "
+            f"$f.InitialDirectory = '{safe_dir}'; "
+            "$f.ShowHelp = $false; "
+            "$top = New-Object System.Windows.Forms.Form; "
+            "$top.TopMost = $true; "
+            "$top.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen; "
+            "if ($f.ShowDialog($top) -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $f.FileName }"
+        )
+        res = subprocess.run(["powershell", "-NoProfile", "-Sta", "-Command", ps_code],
+                             capture_output=True, text=True, timeout=50)
+        out = (res.stdout or "").strip()
+        if out and os.path.isfile(out):
+            return os.path.normpath(out)
     except Exception:
-        return None
+        pass
+
+    return None
 
 
-def pick_model_file(kind):
+def scan_available_models_and_exes():
+    """يكتشف تلقائياً ملفات المشغل والنماذج على الجهاز لتسهيل الاختيار بنقرة واحدة."""
+    exes = []
+    models = []
     c = get_llm_config()
-    if kind == "exe":
-        title = "اختر ملف llama-server.exe"
-        flt = "برنامج النموذج (*.exe)\0*.exe\0جميع الملفات (*.*)\0*.*\0"
-        cur = c["exe"]
-    else:
-        title = "اختر ملف النموذج (.gguf)"
-        flt = "ملف النموذج (*.gguf)\0*.gguf\0جميع الملفات (*.*)\0*.*\0"
-        cur = c["model"]
-    return pick_file_dialog(title, flt, os.path.dirname(cur) if cur else None)
+    if c.get("exe") and os.path.isfile(c["exe"]):
+        exes.append(os.path.normpath(c["exe"]))
+    if c.get("model") and os.path.isfile(c["model"]):
+        models.append(os.path.normpath(c["model"]))
+
+    search_dirs = [
+        os.path.join(ROOT, "bin"),
+        os.path.join(ROOT, "llama"),
+        r"D:\jan",
+        r"C:\jan",
+        os.path.expanduser(r"~\AppData\Local\Programs\Jan"),
+        os.path.expanduser(r"~\.cache\lm-studio\models"),
+        os.path.expanduser(r"~\.ollama\models"),
+    ]
+
+    for base in search_dirs:
+        if not os.path.exists(base):
+            continue
+        try:
+            for root_dir, dirs, files in os.walk(base):
+                rel = os.path.relpath(root_dir, base)
+                if rel.count(os.sep) > 6:
+                    dirs.clear()
+                    continue
+                for f in files:
+                    low = f.lower()
+                    if low == "llama-server.exe":
+                        p = os.path.normpath(os.path.join(root_dir, f))
+                        if p not in exes:
+                            exes.append(p)
+                    elif low.endswith(".gguf"):
+                        p = os.path.normpath(os.path.join(root_dir, f))
+                        if p not in models:
+                            models.append(p)
+        except Exception:
+            pass
+
+    return {"exes": exes, "models": models}
+
+
+def handle_fs_ls(query_params):
+    """يعيد قائمة المجلدات والملفات لتصفح محلي آمن وسريع داخل المتصفح."""
+    path = (query_params.get("path") or [""])[0].strip()
+    kind = (query_params.get("kind") or ["all"])[0].strip()
+
+    drives = []
+    for letter in "CDEFGHIJKLMNOPQRSTUVWXYZ":
+        d = f"{letter}:\\"
+        if os.path.exists(d):
+            drives.append(d)
+
+    if not path or not os.path.exists(path):
+        if kind in ("exe", "model") and os.path.exists("D:\\jan\\llamacpp"):
+            path = "D:\\jan\\llamacpp\\models" if kind == "model" else "D:\\jan\\llamacpp\\backends"
+        elif os.path.exists("D:\\"):
+            path = "D:\\"
+        else:
+            path = drives[0] if drives else ROOT
+
+    path = os.path.abspath(path)
+    entries_dirs = []
+    entries_files = []
+
+    try:
+        with os.scandir(path) as it:
+            for entry in it:
+                try:
+                    if entry.is_dir(follow_symlinks=False):
+                        if not entry.name.startswith((".", "$")):
+                            entries_dirs.append(entry.name)
+                    elif entry.is_file(follow_symlinks=False):
+                        low = entry.name.lower()
+                        if kind == "exe" and low.endswith(".exe"):
+                            size_mb = round(entry.stat().st_size / (1024 * 1024), 1)
+                            entries_files.append({"name": entry.name, "path": os.path.normpath(entry.path), "size": f"{size_mb} MB"})
+                        elif kind == "model" and low.endswith(".gguf"):
+                            size_gb = round(entry.stat().st_size / (1024 * 1024 * 1024), 2)
+                            entries_files.append({"name": entry.name, "path": os.path.normpath(entry.path), "size": f"{size_gb} GB"})
+                        elif kind == "all":
+                            entries_files.append({"name": entry.name, "path": os.path.normpath(entry.path), "size": ""})
+                except Exception:
+                    pass
+    except Exception as e:
+        return {"ok": False, "error": str(e), "current": path, "drives": drives}
+
+    entries_dirs.sort(key=lambda s: s.lower())
+    entries_files.sort(key=lambda f: f["name"].lower())
+
+    parent = os.path.dirname(path.rstrip("\\/"))
+    if parent and not parent.endswith("\\"):
+        parent += "\\"
+    if parent == path:
+        parent = None
+
+    return {
+        "ok": True,
+        "current": path,
+        "parent": parent,
+        "drives": drives,
+        "dirs": entries_dirs,
+        "files": entries_files
+    }
+
+
+def pick_model_file(kind, current_path=None):
+    c = get_llm_config()
+    cur = (current_path or "").strip() or c.get("exe" if kind == "exe" else "model", "")
+    init_dir = None
+    if cur:
+        if os.path.isfile(cur):
+            init_dir = os.path.dirname(cur)
+        elif os.path.isdir(cur):
+            init_dir = cur
+    if not init_dir:
+        try:
+            disc = scan_available_models_and_exes()
+            target_list = disc.get("exes" if kind == "exe" else "models", [])
+            if target_list and os.path.exists(target_list[0]):
+                init_dir = os.path.dirname(target_list[0])
+        except Exception:
+            pass
+    title = "اختر برنامج التشغيل llama-server.exe" if kind == "exe" else "اختر ملف النموذج (.gguf)"
+    return pick_file_dialog(title, filter_type=kind, initial_dir=init_dir)
+
 
 
 # ── المشرف الخلفي (الوكيل الصامت) + خيط الحراسة ──
@@ -886,29 +1260,57 @@ def _read_agent_pid():
     return None
 
 
+def _agent_process_name():
+    """اسم العملية الذي يعمل به الوكيل: في النسخة المجمّعة اسم التنفيذي نفسها، وإلا pythonw."""
+    if getattr(sys, "frozen", False):
+        return os.path.basename(sys.executable).lower()
+    return "pythonw"
+
+
 def _agent_alive():
-    """يتحقق من الوكيل عبر ملفه PID — يعمل مهما كانت الصلاحيات (مرفوعاً أو عادياً)."""
+    """يتحقق من الوكيل عبر ملفه PID — يعمل بسرعة وكفاءة عبر Win32 / psutil."""
     if _agent_proc is not None and _agent_proc.poll() is None:
         return True
     pid = _read_agent_pid()
     if not pid:
         return False
     try:
-        r = subprocess.run(
-            'powershell -NoProfile -Command "((Get-Process -Id %d -ErrorAction SilentlyContinue).Name -eq \'pythonw\')" ' % pid,
-            shell=True, capture_output=True, text=True, timeout=15,
-        )
-        return "true" in r.stdout.lower()
+        import psutil
+        if psutil.pid_exists(pid):
+            p = psutil.Process(pid)
+            if p.is_running() and p.status() != psutil.STATUS_ZOMBIE:
+                cmd = " ".join(p.cmdline() or [])
+                if "background_agent" in cmd:
+                    return True
     except Exception:
-        return False
+        pass
+    try:
+        kernel32 = ctypes.windll.kernel32
+        h = kernel32.OpenProcess(0x1000, False, pid)
+        if h:
+            code = wt.DWORD()
+            kernel32.GetExitCodeProcess(h, ctypes.byref(code))
+            kernel32.CloseHandle(h)
+            return code.value == 259
+    except Exception:
+        pass
+    return False
 
 
 def _kill_stale_agents():
+    """يوقف النسخ المتكررة من الوكيل لمنع أي تعارض في الاختصارات."""
+    mine = os.getpid()
     try:
-        subprocess.run(
-            'powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \'Name like \\\"pythonw%\\\"\' | Where-Object { $_.CommandLine -like \\\"*background_agent.py*\\\" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"',
-            shell=True, capture_output=True, timeout=15,
-        )
+        import psutil
+        for p in psutil.process_iter(["pid", "cmdline"]):
+            try:
+                if p.info["pid"] == mine:
+                    continue
+                cmd = " ".join(p.info["cmdline"] or [])
+                if "background_agent.py" in cmd or "--background-agent" in cmd:
+                    p.terminate()
+            except Exception:
+                pass
     except Exception:
         pass
 
@@ -923,13 +1325,14 @@ def start_background_agent():
         return
     _kill_stale_agents()
     script = os.path.join(ROOT, "background_agent.py")
-    if not os.path.isfile(script):
+    if not getattr(sys, "frozen", False) and not os.path.isfile(script):
         return
     pyw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
     interp = pyw if os.path.isfile(pyw) else sys.executable
     try:
         _agent_proc = subprocess.Popen(
-            [interp, script], cwd=ROOT, creationflags=subprocess.CREATE_NO_WINDOW
+            ([sys.executable, "--background-agent"] if getattr(sys, "frozen", False) else [interp, script]),
+            cwd=ROOT, creationflags=subprocess.CREATE_NO_WINDOW
         )
     except Exception:
         _agent_proc = None
@@ -957,10 +1360,14 @@ def _watchdog_loop():
 
 def stream_llm(messages, temperature=0.6, max_tokens=600, endpoint=None, model=None, api_key=None):
     """مولّد: ينشر مقاطع الإجابة من النموذج المحلي أو المخصص يدوياً."""
-    is_custom = bool(endpoint and ("127.0.0.1:8080" not in endpoint and "localhost:8080" not in endpoint))
+    parsed_endpoint = urlparse(str(endpoint or ""))
+    is_local = (parsed_endpoint.hostname in ("127.0.0.1", "localhost", "::1")
+                and parsed_endpoint.port in (8080, LLM_PORT)
+                and parsed_endpoint.path.rstrip("/") in ("", "/v1", "/v1/chat/completions"))
+    is_custom = bool(endpoint and not is_local)
     if not is_custom:
         if not _ensure_llm_ready():
-            raise RuntimeError("النموذج المحلي غير متاح")
+            raise RuntimeError(llm_failure_message())
         url = f"http://{LLM_HOST}:{LLM_PORT}/v1/chat/completions"
     else:
         url = endpoint.strip().rstrip("/")
@@ -981,32 +1388,46 @@ def stream_llm(messages, temperature=0.6, max_tokens=600, endpoint=None, model=N
         headers["Authorization"] = k if k.startswith("Bearer ") else f"Bearer {k}"
 
     req = urllib.request.Request(url, data=body, headers=headers)
-    with _gen_lock:
-        resp = urllib.request.urlopen(req, timeout=300)
-        for raw in resp:
-            line = raw.decode("utf-8", "replace").strip()
-            if not line.startswith("data:"):
-                continue
-            d = line[5:].strip()
-            if d == "[DONE]":
-                break
-            try:
-                j = json.loads(d)
-            except ValueError:
-                continue
-            delta = (j.get("choices") or [{}])[0].get("delta", {}).get("content", "")
-            if delta:
-                yield delta
+    try:
+        with _gen_lock:
+            resp = urllib.request.urlopen(req, timeout=300)
+            for raw in resp:
+                line = raw.decode("utf-8", "replace").strip()
+                if not line.startswith("data:"):
+                    continue
+                d = line[5:].strip()
+                if d == "[DONE]":
+                    break
+                try:
+                    j = json.loads(d)
+                except ValueError:
+                    continue
+                delta = (j.get("choices") or [{}])[0].get("delta", {}).get("content", "")
+                if delta:
+                    yield delta
+    except urllib.error.HTTPError as err:
+        try:
+            err_body = err.read().decode("utf-8", "replace")
+            err_json = json.loads(err_body)
+            msg = err_json.get("error", {}).get("message") or err_json.get("message") or str(err)
+        except Exception:
+            msg = str(err)
+        raise RuntimeError(f"خطأ من خادم النموذج ({err.code}): {msg}")
 
 
-def build_rag_sources(results):
+def build_rag_sources(results, max_total_chars=6000):
     lines = []
+    total = 0
     for r in results[:8]:
         t = r.get("text", "").strip()[:800]
         a = r.get("ar", "").strip()[:500]
-        lines.append("[%s]\n%s" % (r.get("file", ""), t))
+        entry = "[%s]\n%s" % (r.get("file", ""), t)
         if a:
-            lines.append("بالعربية: " + a)
+            entry += "\nبالعربية: " + a
+        if total + len(entry) > max_total_chars and lines:
+            break
+        lines.append(entry)
+        total += len(entry)
     return "\n\n".join(lines)
 
 
@@ -1403,12 +1824,15 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def _send(self, code, ctype, body):
-        self.send_response(code)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+            self.close_connection = True
 
     def _json(self, obj, code=200):
         self._send(code, "application/json; charset=utf-8",
@@ -1655,7 +2079,12 @@ class Handler(BaseHTTPRequestHandler):
         elif u.path == "/api/bg":
             self._json({"ok": True, "settings": load_bg_config()})
         elif u.path == "/api/model":
-            self._json({"ok": True, "model": get_llm_config()})
+            self._json({"ok": True, "model": get_llm_config(), "discovered": scan_available_models_and_exes()})
+        elif u.path == "/api/model/scan":
+            self._json({"ok": True, "discovered": scan_available_models_and_exes()})
+        elif u.path == "/api/fs/ls":
+            qs = parse_qs(u.query)
+            self._json(handle_fs_ls(qs))
         else:
             self._send(404, "text/plain", b"not found")
 
@@ -1725,7 +2154,8 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError:
                 data = {}
             kind = str(data.get("kind") or "model")
-            path = pick_model_file(kind if kind in ("exe", "model") else "model")
+            current_path = str(data.get("current_path") or "").strip()
+            path = pick_model_file(kind if kind in ("exe", "model") else "model", current_path=current_path)
             self._json({"ok": True, "path": path})
         elif u.path == "/api/quick":
             try:
@@ -1741,7 +2171,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": False, "error": err or "تعذر توليد الرد"}, 500)
                 return
             cfg = load_bg_config()
-            if cfg.get("saveReplies"):
+            if cfg.get("saveReplies", True):
                 quick_store(text, answer)
             self._json({"ok": True, "answer": answer})
         elif u.path == "/api/generation/stop":

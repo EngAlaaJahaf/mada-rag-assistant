@@ -12,3 +12,9 @@ model_config.json
 venv/
 .venv/
 env/
+.venv-build/
+build/
+dist/
+build-temp/
+backups/
+*.spec

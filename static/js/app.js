@@ -172,7 +172,18 @@ function bindEvents() {
         temperature: temp,
         maxTokens: maxT
       });
-      alert('🎉 تم حفظ وتطبيق إعدادات النموذج المخصص بنجاح.');
+
+      if (typeof window.saveLocalModelSettings === 'function') {
+        window.saveLocalModelSettings(function (err, res) {
+          if (!err && res && res.restarted) {
+            uiToast('⚡ تم حفظ وتطبيق جميع الإعدادات وإعادة تشغيل النموذج المحلي');
+          } else if (!err) {
+            uiToast('🎉 تم حفظ وتطبيق إعدادات النموذج بنجاح');
+          }
+        });
+      } else {
+        uiToast('🎉 تم حفظ وتطبيق إعدادات النموذج بنجاح');
+      }
     });
   }
 
@@ -228,6 +239,9 @@ function bindEvents() {
       setFontSize(selFontGen.value);
     });
   }
+
+  /* Accent Color Swatches */
+  if (typeof initAccentSwatches === 'function') initAccentSwatches();
 
   var btnClearGen = $('btn-clear-all-chats-gen');
   if (btnClearGen) {
@@ -803,16 +817,40 @@ function bindEvents() {
     }
   });
 
-  /* Minimap hover, click, and scroll synchronization (Images 1 & 2) */
+  /* Minimap hover, click, and scroll synchronization (Turn Scrubber - Matching Reference) */
   var mm = $('minimap');
   var mmPop = $('minimap-popover');
   if (mm && mmPop) {
-    mm.addEventListener('mouseenter', function () { mmPop.classList.add('open'); });
-    mm.addEventListener('mouseleave', function () { mmPop.classList.remove('open'); });
+    var mmLeaveTimer = null;
+    function openMinimapPopover() {
+      if (mmLeaveTimer) {
+        clearTimeout(mmLeaveTimer);
+        mmLeaveTimer = null;
+      }
+      mmPop.classList.add('open');
+    }
+    function closeMinimapPopover() {
+      if (mmLeaveTimer) clearTimeout(mmLeaveTimer);
+      mmLeaveTimer = setTimeout(function () {
+        mmPop.classList.remove('open');
+      }, 280);
+    }
+
+    mm.addEventListener('mouseenter', openMinimapPopover);
+    mm.addEventListener('mouseleave', closeMinimapPopover);
+    mmPop.addEventListener('mouseenter', openMinimapPopover);
+    mmPop.addEventListener('mouseleave', closeMinimapPopover);
+
     mm.addEventListener('click', function (e) {
       var target = e.target.closest('.mm-tick, .mm-item');
       if (target && target.dataset.idx != null) {
         scrollMsgIntoView(parseInt(target.dataset.idx, 10));
+      }
+    });
+    mm.addEventListener('mouseover', function (e) {
+      var target = e.target.closest('.mm-tick, .mm-item');
+      if (target && target.dataset.idx != null) {
+        highlightMinimapTick(parseInt(target.dataset.idx, 10));
       }
     });
   }
@@ -824,8 +862,9 @@ function bindEvents() {
     var activeIdx = 0;
     for (var i = 0; i < cards.length; i++) {
       var rect = cards[i].getBoundingClientRect();
-      if (rect.top - containerTop <= 200) {
-        activeIdx = i;
+      if (rect.top - containerTop <= 160) {
+        var midx = cards[i].dataset.msgIdx;
+        activeIdx = midx != null && midx !== '' ? parseInt(midx, 10) : i;
       }
     }
     highlightMinimapTick(activeIdx);
@@ -872,9 +911,11 @@ function updateSendDisabled() {
 async function init() {
   setTheme(getTheme());
   setFontSize(getFontSize());
+  if (typeof applyAccentColor === 'function') applyAccentColor();
   renderProfileUI();
   renderModelConfigUI();
   renderPersonalizationUI();
+  if (typeof renderModelLocalUI === 'function') renderModelLocalUI();
   try {
     if (localStorage.getItem(LS_SBAR) === '1') body.classList.add('sb-collapsed');
   } catch (e) {}

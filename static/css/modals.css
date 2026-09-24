@@ -35,10 +35,24 @@
   font-size:13.5px;font-weight:600;color:var(--text);cursor:pointer;transition:all .15s;
 }
 .adm-btn:hover{background:var(--panel-hover)}
-.adm-btn-primary{background:var(--btn-core);color:var(--btn-core-ink);border:none}
-.adm-btn-primary:hover{opacity:.92}
-.adm-btn-accent{background:var(--accent);color:#fff;border:none}
-.adm-btn-accent:hover{opacity:.92}
+.adm-btn-primary,
+.adm-btn-accent{
+  background:var(--accent, #0066cc)!important;
+  color:#ffffff!important;
+  border:none!important;
+  box-shadow:0 2px 6px rgba(0, 102, 204, 0.22);
+  transition:all .15s ease;
+}
+.adm-btn-primary:hover,
+.adm-btn-accent:hover{
+  background:var(--accent-hover, #0052a3)!important;
+  opacity:.96!important;
+  box-shadow:0 4px 12px rgba(0, 102, 204, 0.32);
+}
+.adm-btn-primary:active,
+.adm-btn-accent:active{
+  transform:scale(0.985);
+}
 .adm-btn-danger{background:#e5484d;color:#fff;border:none}
 .adm-btn-danger:hover{background:#d13b40}
 
@@ -290,4 +304,16 @@
   .mem-form-grid,.mem-item-fields{grid-template-columns:1fr}
   .mem-preview{font-size:11px}
 }
+
+/* ===== ضمان ظهور متصفح الملفات المدمج فوق نافذة الإعدادات تماماً ===== */
+#modal-file-picker {
+  z-index: 1000000 !important;
+}
+#modal-file-picker .adm-backdrop {
+  z-index: 1000001 !important;
+}
+#modal-file-picker .adm-dialog {
+  z-index: 1000002 !important;
+}
+
 

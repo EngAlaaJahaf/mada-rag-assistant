@@ -4,14 +4,14 @@
   --text:#0d0d0d; --text2:#374151; --muted:#8e8ea0;
   --border:rgba(0,0,0,.08); --top-border:transparent;
   --bubble:#f4f4f4; --composer-bg:#f4f4f4; --composer-border:transparent;
-  --accent:#10a37f; --accent-soft:rgba(16,163,127,.1); --accent-ink:#0b7a5e;
+  --accent:#0066cc; --accent-hover:#0052a3; --accent-soft:rgba(0,102,204,.1); --accent-ink:#0052a3;
   --blue-accent:#0066cc;
   --btn-core:#0d0d0d; --btn-core-ink:#ffffff; --btn-disable:#d1d1d1;
   --code-bg:#1e1e1e; --code-ink:#e2e2e2;
   --shadow:0 2px 12px rgba(0,0,0,.06);
   --thumb:rgba(0,0,0,.14);
-  --ring:rgba(16,163,127,.35);
-  --grad:linear-gradient(135deg,#10a37f,#5ee0b8);
+  --ring:rgba(0,102,204,.35);
+  --grad:linear-gradient(135deg,#0066cc,#38bdf8);
   --msg-asst-bg:transparent; --msg-user-bg:#f4f4f4;
 }
 [data-theme="dark"]{
@@ -19,14 +19,14 @@
   --text:#ececec; --text2:#c5c5d2; --muted:#8e8ea0;
   --border:rgba(255,255,255,.08); --top-border:transparent;
   --bubble:#2f2f2f; --composer-bg:#2f2f2f; --composer-border:transparent;
-  --accent:#10a37f; --accent-soft:rgba(16,163,127,.18); --accent-ink:#5ee0b8;
-  --blue-accent:#3b82f6;
+  --accent:#0066cc; --accent-hover:#1a75d2; --accent-soft:rgba(0,102,204,.2); --accent-ink:#60a5fa;
+  --blue-accent:#0066cc;
   --btn-core:#ececec; --btn-core-ink:#0d0d0d; --btn-disable:#3a3a3a;
   --code-bg:#0d0d0d; --code-ink:#ececec;
   --shadow:0 2px 12px rgba(0,0,0,.35);
   --thumb:rgba(255,255,255,.16);
-  --ring:rgba(16,163,127,.5);
-  --grad:linear-gradient(135deg,#10a37f,#38c79f);
+  --ring:rgba(0,102,204,.45);
+  --grad:linear-gradient(135deg,#0066cc,#0284c7);
   --msg-asst-bg:transparent; --msg-user-bg:#2f2f2f;
 }
 html,body{height:100%}
@@ -37,6 +37,7 @@ body{
 }
 button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
 input,textarea{font-family:inherit;color:inherit}
+input[type="range"]{accent-color:var(--accent,#0066cc)!important;cursor:pointer}
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
 svg{display:block;flex:0 0 auto}
@@ -48,3 +49,9 @@ svg{display:block;flex:0 0 auto}
 
 #app{display:flex;height:100vh;width:100%}
 
+/* ── منتقي لون التطبيق (Accent Swatches) ── */
+.accent-swatch--active{
+  border-color:var(--text)!important;
+  box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--text);
+  transform:scale(1.18)!important;
+}

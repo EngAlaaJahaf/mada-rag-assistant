@@ -268,11 +268,10 @@
       <!-- Messages Stream (Shown when not empty) -->
       <div id="msgs"></div>
 
-      <!-- Minimap Navigator (Images 1 & 2) -->
+      <!-- Minimap Navigator (Turn Scrubber - Matching Reference) -->
       <div id="minimap" class="hidden">
         <div id="minimap-ticks"></div>
         <div id="minimap-popover">
-          <div class="mm-pop-title">التنقل السريع في المحادثة</div>
           <div id="minimap-list"></div>
         </div>
       </div>
@@ -676,7 +675,8 @@
   </div>
 </div>
 
-<!-- 4. Modern ChatGPT-Style Settings Modal -->
+
+<!-- 5. Modern ChatGPT-Style Settings Modal -->
 <div id="modal-settings" class="app-dialog-modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings-dialog-title">
   <div class="adm-backdrop" data-close="modal-settings"></div>
   <div class="adm-dialog" style="max-width:920px;height:86vh;max-height:740px;padding:0;overflow:hidden;border-radius:22px;">
@@ -804,6 +804,28 @@
                   <option value="dark">داكن (Dark)</option>
                   <option value="auto">تلقائي مع النظام (System)</option>
                 </select>
+              </div>
+            </div>
+
+            <!-- حجم الخط -->
+            <div class="st-row">
+              <div class="st-row-info">
+                <div class="st-row-title">لون التطبيق (Accent)</div>
+                <div class="st-row-desc">يُغيّر لون الأزرار والمؤشرات وأشرطة التقدم وحلقات التركيز في كامل الواجهة. يُحفظ تلقائياً.</div>
+              </div>
+              <div class="st-row-action" style="flex-direction:column;align-items:flex-start;gap:10px;">
+                <!-- شرائح الألوان الجاهزة -->
+                <div id="accent-swatches" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;"></div>
+                <!-- لون مخصص + إعادة تعيين -->
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <label style="font-size:12px;color:var(--muted);white-space:nowrap;">مخصص:</label>
+                  <input type="color" id="accent-custom-input" value="#0066cc"
+                    style="width:34px;height:28px;border:1.5px solid var(--border);border-radius:6px;padding:2px;cursor:pointer;background:var(--panel);">
+                  <button type="button" id="accent-reset-btn"
+                    style="font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel);color:var(--muted);cursor:pointer;">
+                    إعادة تعيين
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1026,9 +1048,9 @@
                 <div class="st-row-title">رابط مزوّد الخدمة (API Base URL / Endpoint)</div>
                 <div class="st-row-desc">حدد رابط الخادم المتوافق مع بروتوكول OpenAI Completions (مثل خادم llama.cpp، Ollama، vLLM، LM Studio، أو مزود خارجي).</div>
               </div>
-              <input type="text" class="st-input" id="cfg-model-endpoint" placeholder="http://127.0.0.1:8080/v1" value="http://127.0.0.1:8080/v1" style="direction:ltr;text-align:left;font-family:var(--font-mono, monospace);">
+              <input type="text" class="st-input" id="cfg-model-endpoint" placeholder="http://127.0.0.1:8081/v1" value="http://127.0.0.1:8081/v1" style="direction:ltr;text-align:left;font-family:var(--font-mono, monospace);">
               <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
-                <span class="st-badge-preset" data-preset-url="http://127.0.0.1:8080/v1">محلي: llama.cpp (8080)</span>
+                <span class="st-badge-preset" data-preset-url="http://127.0.0.1:8081/v1">محلي: llama.cpp (8081)</span>
                 <span class="st-badge-preset" data-preset-url="http://127.0.0.1:11434/v1">محلي: Ollama (11434)</span>
                 <span class="st-badge-preset" data-preset-url="http://127.0.0.1:1234/v1">محلي: LM Studio (1234)</span>
                 <span class="st-badge-preset" data-preset-url="https://api.openai.com/v1">خارجي: OpenAI Compatible</span>
@@ -1098,52 +1120,59 @@
               <div class="st-row" style="flex-direction:column;align-items:stretch;">
                 <div class="st-row-info" style="margin-bottom:6px;">
                   <div class="st-row-title">برنامج التشغيل llama-server.exe</div>
+                  <div class="st-row-desc">اختر ملف المشغّل عبر متصفح الملفات أو الصق المسار مباشرة:</div>
                 </div>
                 <div style="display:flex;gap:8px;align-items:center;">
-                  <input type="text" class="st-input" id="cfg-llm-exe" readonly placeholder="اختر llama-server.exe..." style="direction:ltr;text-align:left;flex:1;font-family:var(--font-mono, monospace);">
-                  <button class="adm-btn" type="button" id="btn-pick-llm-exe">اختيار...</button>
+                  <input type="text" class="st-input" id="cfg-llm-exe" placeholder="اختر أو الصق مسار llama-server.exe..." style="direction:ltr;text-align:left;flex:1;font-family:var(--font-mono, monospace);" autocomplete="off" spellcheck="false">
+                  <button class="adm-btn" type="button" id="btn-pick-llm-exe" title="فتح متصفح ملفات ويندوز الأصلي">📁 اختيار...</button>
+                  <button class="adm-btn" type="button" id="btn-browse-llm-exe" title="استعراض مجلدات الجهاز بالمتصفح" style="font-size:12px;opacity:0.9;">📂 استعراض...</button>
                 </div>
+                <div id="cfg-llm-exe-discovered" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;"></div>
               </div>
 
               <div class="st-row" style="flex-direction:column;align-items:stretch;">
                 <div class="st-row-info" style="margin-bottom:6px;">
                   <div class="st-row-title">ملف النموذج (.gguf)</div>
+                  <div class="st-row-desc">اختر ملف الأوزان بصيغة GGUF أو الصق المسار مباشرة:</div>
                 </div>
                 <div style="display:flex;gap:8px;align-items:center;">
-                  <input type="text" class="st-input" id="cfg-llm-model" readonly placeholder="اختر model.gguf..." style="direction:ltr;text-align:left;flex:1;font-family:var(--font-mono, monospace);">
-                  <button class="adm-btn" type="button" id="btn-pick-llm-model">اختيار...</button>
+                  <input type="text" class="st-input" id="cfg-llm-model" placeholder="اختر أو الصق مسار ملف النموذج .gguf..." style="direction:ltr;text-align:left;flex:1;font-family:var(--font-mono, monospace);" autocomplete="off" spellcheck="false">
+                  <button class="adm-btn" type="button" id="btn-pick-llm-model" title="فتح متصفح ملفات ويندوز الأصلي">📁 اختيار...</button>
+                  <button class="adm-btn" type="button" id="btn-browse-llm-model" title="استعراض مجلدات الجهاز بالمتصفح" style="font-size:12px;opacity:0.9;">📂 استعراض...</button>
                 </div>
+                <div id="cfg-llm-model-discovered" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;"></div>
               </div>
 
               <div class="st-row">
                 <div class="st-row-info">
-                  <div class="st-row-title">مستوى الأداء (مواصفات الجهاز)</div>
-                  <div class="st-row-desc">متواضع: CPU بالكامل وسياق صغير — لا يتعطل على الأجهزة الضعيفة. كامل: استخدام كل طبقات GPU كما كان سابقاً.</div>
+                  <div class="st-row-title">تكييف الأداء بحسب مواصفات الجهاز</div>
+                  <div class="st-row-desc">يكتشف مواصفات الجهاز تلقائياً (كارت الشاشة NVIDIA والـ VRAM والرام) ويضبط طبقات التسريع وسياق الذاكرة لضمان أقصى سرعة بدون أخطاء.</div>
                 </div>
                 <div class="st-row-action">
                   <select class="st-select" id="cfg-llm-spec">
-                    <option value="low">متواضع — آمن على أي جهاز (مُوصى به)</option>
-                    <option value="medium">متوسط — استعمال جزئي للـ GPU</option>
-                    <option value="full">كامل — كل طبقات GPU (سريع لكن يستهلك ذاكرة)</option>
+                    <option value="auto">⚡ كشف تلقائي ذكي — يضبط الأداء بحسب عتاد الجهاز (مُستحسن)</option>
+                    <option value="full">كامل — كل طبقات GPU (أقصى سرعة مع كروت الشاشة القوية)</option>
+                    <option value="medium">متوسط — تسريع هجين GPU + CPU (للكروت 4GB)</option>
+                    <option value="low">متواضع — CPU بالكامل للأجهزة بدون كارت شاشة خارجي</option>
                   </select>
                 </div>
               </div>
 
-              <div class="st-row" style="flex-direction:column;align-items:flex-start;">
-                <div class="st-row-info">
-                  <div class="st-row-title">الحالة الحالية</div>
-                  <div class="st-row-desc" id="cfg-llm-status" style="font-family:var(--font-mono, monospace);direction:ltr;text-align:left;">... </div>
+              <div class="st-row" style="flex-direction:column;align-items:stretch;">
+                <div class="st-row-info" style="width:100%;">
+                  <div class="st-row-title">حالة العتاد المكتشف والوضع الفعلي</div>
+                  <div class="st-row-desc" id="cfg-llm-status" style="font-family:var(--font-mono, monospace);direction:rtl;text-align:right;white-space:pre-wrap;line-height:1.6;width:100%;box-sizing:border-box;background:var(--panel-hover);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-top:6px;font-size:12.5px;">جاري قراءة حالة العتاد...</div>
                 </div>
               </div>
 
               <div style="padding-top:6px;display:flex;justify-content:flex-end;">
-                <button class="adm-btn adm-btn-accent" type="button" id="btn-save-llm-local">حفظ النموذج المحلي وإعادة تشغيله</button>
+                <button class="adm-btn adm-btn-accent" type="button" id="btn-save-llm-local">⚡ إعادة تشغيل النموذج المحلي وتطبيق الإعدادات</button>
               </div>
             </div>
 
-            <!-- زر الحفظ والتطبيق -->
-            <div style="padding-top:8px;display:flex;justify-content:flex-end;">
-              <button class="adm-btn adm-btn-accent" type="button" id="btn-save-model-settings">حفظ وتطبيق إعدادات النموذج</button>
+            <!-- زر الحفظ والتطبيق الشامل -->
+            <div style="padding-top:10px;display:flex;justify-content:flex-end;border-top:1px solid var(--border);margin-top:8px;">
+              <button class="adm-btn adm-btn-accent" type="button" id="btn-save-model-settings" style="font-weight:700;">💾 حفظ وتطبيق جميع إعدادات النموذج</button>
             </div>
           </div>
 
@@ -1396,10 +1425,10 @@
             <div class="st-row">
               <div class="st-row-info">
                 <div class="st-row-title">مدة بقاء النافذة</div>
-                <div class="st-row-desc">بالثواني (1–30)؛ يتوقف العدّاد تلقائياً عند تمرير الفأرة فوقها.</div>
+                <div class="st-row-desc">بالثواني (0.5–30)؛ تقبل أرقاماً عشرية (float)؛ يتوقف العدّاد تلقائياً عند تمرير الفأرة فوقها.</div>
               </div>
               <div class="st-row-action">
-                <input type="number" class="st-input" id="cfg-qp-duration" min="1" max="30" step="1" style="width:90px;">
+                <input type="number" class="st-input" id="cfg-qp-duration" min="0.1" max="30" step="any" placeholder="3" style="width:90px;">
               </div>
             </div>
 
@@ -1431,6 +1460,7 @@
                   <option value="small">صغير (300px)</option>
                   <option value="medium">متوسط (420px)</option>
                   <option value="wide">عريض (560px)</option>
+                  <option value="custom">مخصص (حسب السحب اليدوي)</option>
                 </select>
               </div>
             </div>
@@ -1438,10 +1468,10 @@
             <div class="st-row">
               <div class="st-row-info">
                 <div class="st-row-title">حفظ الردود في محادثة «سريع»</div>
-                <div class="st-row-desc">افتراضياً لا يُحفظ شيء. عند التفعيل يُسجَّل كل سؤال وجواب في محادثة «سريع» تظهر في الشريط الجانبي.</div>
+                <div class="st-row-desc">افتراضياً مفعّل. يُسجَّل كل سؤال وجواب في محادثة «سريع» تظهر في الشريط الجانبي (يمكنك إيقافه إن رغبت).</div>
               </div>
               <div class="st-row-action">
-                <button type="button" role="switch" class="st-switch" id="cfg-qp-save" aria-checked="false"><span class="st-switch-thumb"></span></button>
+                <button type="button" role="switch" class="st-switch active" id="cfg-qp-save" aria-checked="true"><span class="st-switch-thumb"></span></button>
               </div>
             </div>
 
@@ -1455,6 +1485,62 @@
     </div>
   </div>
 </div>
+
+<!-- 5. In-App File Explorer Modal (مستكشف الملفات المدمج بالواجهة - يظهر فوق نافذة الإعدادات) -->
+<div id="modal-file-picker" class="app-dialog-modal hidden" role="dialog" aria-modal="true" style="z-index: 1000000 !important;">
+  <div class="adm-backdrop" data-close="modal-file-picker" style="z-index: 1000001 !important;"></div>
+  <div class="adm-dialog" style="max-width:760px;width:94%;max-height:84vh;display:flex;flex-direction:column;padding:0;overflow:hidden;border-radius:18px;z-index: 1000002 !important;">
+    <!-- Header -->
+    <div class="adm-header" style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--panel);">
+      <div class="adm-title" style="display:flex;align-items:center;gap:8px;font-size:16px;font-weight:700;">
+        <span id="fp-modal-icon" style="font-size:18px;">📁</span>
+        <span id="fp-modal-title">اختيار ملف من الجهاز</span>
+      </div>
+      <button class="adm-close" type="button" data-close="modal-file-picker" title="إغلاق">✕</button>
+    </div>
+    <!-- Body -->
+    <div class="adm-body" style="padding:16px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:14px;flex:1;">
+      
+      <!-- Auto Discovered Section -->
+      <div id="fp-discovered-box" style="display:none;background:var(--panel-hover);border:1px solid var(--border);border-radius:10px;padding:12px;">
+        <div style="font-size:12.5px;font-weight:700;margin-bottom:8px;color:var(--text);display:flex;align-items:center;gap:6px;">
+          <span>⚡</span><span>ملفات مكتشفة تلقائياً في جهازك (اختيار بنقرة واحدة):</span>
+        </div>
+        <div id="fp-discovered-items" style="display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
+
+      <!-- Path Bar and Drives -->
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;" id="fp-drives-list"></div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="adm-btn" type="button" id="fp-btn-up" title="مجلد للأعلى" style="padding:6px 12px;white-space:nowrap;">⬆️ للأعلى</button>
+          <input type="text" class="st-input" id="fp-current-path" placeholder="المسار الحالي..." style="direction:ltr;text-align:left;flex:1;font-family:var(--font-mono, monospace);">
+          <button class="adm-btn" type="button" id="fp-btn-go" style="white-space:nowrap;">انتقال</button>
+        </div>
+      </div>
+
+      <!-- File and Folder Explorer List -->
+      <div id="fp-explorer-container" style="border:1px solid var(--border);border-radius:10px;background:var(--panel);min-height:220px;max-height:300px;overflow-y:auto;padding:6px;">
+        <div id="fp-explorer-list" style="display:flex;flex-direction:column;gap:2px;"></div>
+      </div>
+
+      <!-- Manual Input Option -->
+      <div style="display:flex;gap:8px;align-items:center;padding-top:4px;">
+        <span style="font-size:12.5px;color:var(--muted);white-space:nowrap;font-weight:600;">المسار المختار:</span>
+        <input type="text" class="st-input" id="fp-selected-path" placeholder="انقر على أي ملف أعلاه أو الصق مساراً هنا..." style="direction:ltr;text-align:left;flex:1;font-family:var(--font-mono, monospace);">
+      </div>
+    </div>
+    <!-- Footer -->
+    <div class="adm-footer" style="padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--panel);">
+      <button class="adm-btn" type="button" id="fp-btn-open-os" style="font-size:12px;" title="فتح نافذة اختيار الملفات الأصلية لويندوز">🪟 متصفح ملفات ويندوز الأصلي</button>
+      <div style="display:flex;gap:8px;">
+        <button class="adm-btn" type="button" data-close="modal-file-picker">إلغاء</button>
+        <button class="adm-btn adm-btn-primary" type="button" id="fp-btn-confirm">تأكيد الاختيار</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 
 <!-- 5. Help Modal -->
 <div id="modal-help" class="app-dialog-modal hidden" role="dialog" aria-modal="true" aria-labelledby="mh-title">
