@@ -1,0 +1,5 @@
+{
+  "spec": "auto",
+  "exe": "D:\\jan\\llamacpp\\backends\\b9967\\win-avx-cuda-cu12.0-x64\\build\\bin\\llama-server.exe",
+  "model": "D:\\jan\\llamacpp\\models\\Jan-v3.5-4B-Q4_K_XL\\model.gguf"
+}
