@@ -1,0 +1,11 @@
+{
+  "name": "ocr-engine",
+  "title": "محرك استخراج النصوص من الصور والمستندات الممسوحة (OCR)",
+  "version": "1.0.0",
+  "engine": "Tesseract-OCR (LSTM)",
+  "languages": ["ara", "eng"],
+  "supported_formats": [".pdf", ".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".webp"],
+  "entrypoint": "ocr_bridge.py",
+  "executable": "ocr_bridge.exe",
+  "description": "ملحق مستقل لقراءة الصور وملفات PDF المصورة وتحويلها إلى نصوص مفهرسة لـ RAG بدون التأثير على نواة التطبيق."
+}

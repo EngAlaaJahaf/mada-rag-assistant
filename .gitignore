@@ -18,3 +18,5 @@ dist/
 build-temp/
 backups/
 *.spec
+plugins/ocr/tesseract/
+plugins/ocr/*.exe

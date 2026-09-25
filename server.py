@@ -55,7 +55,10 @@ UPLOADS = os.path.join(ROOT, "uploads")
 CHUNKS_PATH = os.path.join(ROOT, "index_data", "chunks.json")
 LOCK = threading.Lock()
 
-ALLOWED = {".txt", ".md", ".pdf", ".docx", ".pptx", ".xlsx", ".sql", ".json", ".csv", ".py", ".js", ".html", ".css", ".log"}
+ALLOWED = {
+    ".txt", ".md", ".pdf", ".docx", ".pptx", ".xlsx", ".sql", ".json", ".csv", ".py", ".js", ".html", ".css", ".log",
+    ".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".webp"
+}
 
 # ── طبقة التخزين المحلي SQLite للمحادثات والمشروعات ──
 import sqlite3
@@ -1544,14 +1547,108 @@ def extract_pptx(path):
     return slides
 
 
+# ── تكامل ملحق OCR المستقل لقراءة الصور والمستندات الممسوحة ضوئياً ──
+PLUGIN_OCR_DIR = os.path.join(ROOT, "plugins", "ocr")
+PLUGIN_OCR_EXE = os.path.join(PLUGIN_OCR_DIR, "ocr_bridge.exe")
+PLUGIN_OCR_PY = os.path.join(PLUGIN_OCR_DIR, "ocr_bridge.py")
+
+
+def ocr_available():
+    """التحقق الآمن من توفر ملحق OCR ومحرك التعرّف دون التأثير على عمل التطبيق الأساسي."""
+    if os.path.isfile(PLUGIN_OCR_EXE):
+        return True
+    if os.path.isfile(PLUGIN_OCR_PY):
+        return True
+    return False
+
+
+def call_ocr_plugin(file_path, lang="ara+eng", timeout=120):
+    """استدعاء ملحق OCR كعملية منفصلة (Subprocess) واسترجاع النتائج بصيغة JSON."""
+    if not ocr_available():
+        return {"ok": False, "error": "OCR plugin not installed"}
+
+    if os.path.isfile(PLUGIN_OCR_EXE):
+        cmd = [PLUGIN_OCR_EXE, "--file", str(file_path), "--lang", lang]
+    else:
+        interp = sys.executable
+        cmd = [interp, PLUGIN_OCR_PY, "--file", str(file_path), "--lang", lang]
+
+    try:
+        creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        res = subprocess.run(
+            cmd,
+            capture_output=True,
+            timeout=timeout,
+            creationflags=creation_flags,
+            cwd=ROOT,
+        )
+        if res.returncode == 0 and res.stdout:
+            raw_out = res.stdout.decode("utf-8", errors="replace").strip()
+            return json.loads(raw_out)
+        else:
+            err_msg = res.stderr.decode("utf-8", errors="replace").strip() if res.stderr else "OCR execution failed"
+            return {"ok": False, "error": err_msg}
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": f"OCR timeout after {timeout}s"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 def extract_pdf(path):
     r = PdfReader(path)
     pages = []
+    empty_pages = []
     for i, pg in enumerate(r.pages, 1):
-        t = pg.extract_text() or ""
+        try:
+            t = pg.extract_text() or ""
+        except Exception:
+            t = ""
         if t.strip():
             pages.append((f"صفحة {i}", t))
+        else:
+            empty_pages.append(i)
+
+    # إذا كانت هناك صفحات فارغة (ممسوحة ضوئياً) والملحق متاح، نستخرج نصوصها عبر OCR
+    if empty_pages and ocr_available():
+        try:
+            ocr_res = call_ocr_plugin(path)
+            if ocr_res and ocr_res.get("ok"):
+                ocr_map = {
+                    p.get("page"): p.get("text", "").strip()
+                    for p in ocr_res.get("pages", [])
+                    if p.get("text", "").strip()
+                }
+                for pnum in empty_pages:
+                    if pnum in ocr_map:
+                        pages.append((f"صفحة {pnum} (OCR)", ocr_map[pnum]))
+        except Exception as e:
+            print("extract_pdf OCR error:", path, e)
+
+    def _page_num(item):
+        m = re.search(r"\d+", item[0])
+        return int(m.group(0)) if m else 0
+
+    pages.sort(key=_page_num)
     return pages
+
+
+def extract_image(path):
+    """استخراج النصوص من ملفات الصور عبر ملحق OCR."""
+    if not ocr_available():
+        return []
+    try:
+        ocr_res = call_ocr_plugin(path)
+        if ocr_res and ocr_res.get("ok"):
+            out = []
+            for p in ocr_res.get("pages", []):
+                txt = p.get("text", "").strip()
+                if txt:
+                    pnum = p.get("page", 1)
+                    out.append((f"صورة صفحة {pnum}", txt))
+            return out
+    except Exception as e:
+        print("extract_image error:", path, e)
+    return []
 
 
 def extract_xlsx(path):
@@ -1577,6 +1674,8 @@ EXTRACTORS = {
     ".log": extract_txt,
     ".docx": extract_docx, ".pptx": extract_pptx, ".pdf": extract_pdf,
     ".xlsx": extract_xlsx,
+    ".png": extract_image, ".jpg": extract_image, ".jpeg": extract_image,
+    ".bmp": extract_image, ".tiff": extract_image, ".webp": extract_image,
 }
 
 
@@ -2045,6 +2144,7 @@ class Handler(BaseHTTPRequestHandler):
                 "words": words,
                 "translate": translation_available(),
                 "gen": generation_available(),
+                "ocr": ocr_available(),
                 "v": 5
             })
         elif u.path == "/ask":
@@ -2141,6 +2241,14 @@ class Handler(BaseHTTPRequestHandler):
         elif u.path == "/api/fs/ls":
             qs = parse_qs(u.query)
             self._json(handle_fs_ls(qs))
+        elif u.path == "/api/ocr/status":
+            self._json({
+                "ok": True,
+                "available": ocr_available(),
+                "plugin_dir": PLUGIN_OCR_DIR,
+                "has_exe": os.path.isfile(PLUGIN_OCR_EXE),
+                "has_py": os.path.isfile(PLUGIN_OCR_PY),
+            })
         else:
             self._send(404, "text/plain", b"not found")
 
@@ -2515,9 +2623,11 @@ def main():
     srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     trs = "متاحة (نموذجك المحلي إنجليزي-عربي)" if translation_available() else "غير متاحة (عدّل مسار VENV في السيرفر)"
     gens = "متاح (نموذج محلي)" if generation_available() else "غير مثبّت"
+    ocrs = "متاح (محرك مستقل)" if ocr_available() else "غير مثبّت (ملحق اختياري)"
     print(f"مذكّرتي تعمل: http://127.0.0.1:{port}")
     print(f"الترجمة المحلية: {trs}")
     print(f"التوليد المحلي: {gens}")
+    print(f"استخراج نصوص الصور (OCR): {ocrs}")
     threading.Thread(target=_watchdog_loop, daemon=True).start()
     start_background_agent()
     try:
