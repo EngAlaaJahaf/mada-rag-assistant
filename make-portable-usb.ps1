@@ -1,4 +1,4 @@
-# ======================================================================
+﻿# ======================================================================
 # Mada-RAG Portable - Direct Fast Sync & USB Deployment Tool
 # ======================================================================
 param(
@@ -41,20 +41,36 @@ if (-not (Test-Path -LiteralPath $ModelFile)) {
 # 3. Detect USB and Removable drives
 function Get-UsbDrives {
     $list = @()
+
+    # A) Check Win32_LogicalDisk for Removable drives (DriveType = 2)
     try {
-        $disks = Get-Disk -ErrorAction SilentlyContinue | Where-Object {
-            $_.BusType -eq 'USB' -and -not $_.IsOffline -and -not $_.IsReadOnly -and -not $_.IsBoot -and -not $_.IsSystem
+        $logicals = Get-CimInstance Win32_LogicalDisk -ErrorAction SilentlyContinue | Where-Object { $_.DriveType -eq 2 }
+        foreach ($ld in $logicals) {
+            $freeGB = if ($ld.FreeSpace) { [math]::Round($ld.FreeSpace / 1GB, 2) } else { 0 }
+            $list += [pscustomobject]@{
+                Drive = $ld.DeviceID
+                Device = if ($ld.VolumeName) { $ld.VolumeName } else { "Removable USB Disk" }
+                Label = $ld.VolumeName
+                FreeGB = $freeGB
+            }
         }
-        foreach ($d in $disks) {
+    } catch {}
+
+    # B) Check Get-Disk with BusType USB
+    try {
+        $usbDisks = Get-Disk -ErrorAction SilentlyContinue | Where-Object { $_.BusType -eq 'USB' }
+        foreach ($d in $usbDisks) {
             foreach ($p in (Get-Partition -DiskNumber $d.Number -ErrorAction SilentlyContinue)) {
                 if ($p.DriveLetter) {
-                    $v = $p | Get-Volume -ErrorAction SilentlyContinue
-                    if ($v -and $v.SizeRemaining -gt 0) {
+                    $let = "$($p.DriveLetter):"
+                    if (-not ($list | Where-Object { $_.Drive -eq $let })) {
+                        $v = $p | Get-Volume -ErrorAction SilentlyContinue
+                        $freeGB = if ($v -and $v.SizeRemaining) { [math]::Round($v.SizeRemaining / 1GB, 2) } else { [math]::Round($p.Size / 1GB, 2) }
                         $list += [pscustomobject]@{
-                            Drive = "$($p.DriveLetter):"
+                            Drive = $let
                             Device = $d.FriendlyName
-                            Label = $v.FileSystemLabel
-                            FreeGB = [math]::Round($v.SizeRemaining / 1GB, 2)
+                            Label = if ($v) { $v.FileSystemLabel } else { "" }
+                            FreeGB = $freeGB
                         }
                     }
                 }
@@ -62,30 +78,13 @@ function Get-UsbDrives {
         }
     } catch {}
 
-    try {
-        $removables = Get-Volume -ErrorAction SilentlyContinue | Where-Object {
-            $_.DriveType -eq 'Removable' -and $_.DriveLetter -and $_.SizeRemaining -gt 0
-        }
-        foreach ($v in $removables) {
-            $let = "$($v.DriveLetter):"
-            if (-not ($list | Where-Object { $_.Drive -eq $let })) {
-                $list += [pscustomobject]@{
-                    Drive = $let
-                    Device = 'Removable USB'
-                    Label = $v.FileSystemLabel
-                    FreeGB = [math]::Round($v.SizeRemaining / 1GB, 2)
-                }
-            }
-        }
-    } catch {}
-
-    return @($list | Sort-Object Drive -Unique)
+    return ,@($list | Sort-Object Drive -Unique)
 }
 
 # 4. Prompt or auto-detect USB destination
 while ([string]::IsNullOrWhiteSpace($Flash)) {
-    Write-Host "`nScanning for connected USB flash drives..." -ForegroundColor Gray
-    $usbTargets = Get-UsbDrives
+    Write-Host "Scanning for connected USB flash drives..." -ForegroundColor Gray
+    $usbTargets = @(Get-UsbDrives)
 
     if ($usbTargets.Count -eq 0) {
         Write-Host "Waiting for USB flash drive to be plugged in (checking every 2s)..." -ForegroundColor Yellow -NoNewline
@@ -93,7 +92,7 @@ while ([string]::IsNullOrWhiteSpace($Flash)) {
         while ($usbTargets.Count -eq 0 -and $retries -lt 30) {
             Start-Sleep -Seconds 2
             $retries++
-            $usbTargets = Get-UsbDrives
+            $usbTargets = @(Get-UsbDrives)
             if ($usbTargets.Count -gt 0) { break }
             Write-Host "." -NoNewline -ForegroundColor Gray
         }
