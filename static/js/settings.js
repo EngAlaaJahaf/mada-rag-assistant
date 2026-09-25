@@ -647,10 +647,20 @@ function renderQuickPopupSettings() {
         position: $('cfg-qp-position') ? $('cfg-qp-position').value : 'right',
         color: $('cfg-qp-color') ? $('cfg-qp-color').value : 'light',
         size: $('cfg-qp-size') ? $('cfg-qp-size').value : 'medium',
-        saveReplies: $('cfg-qp-save') ? $('cfg-qp-save').classList.contains('active') : true
+        saveReplies: $('cfg-qp-save') ? $('cfg-qp-save').classList.contains('active') : true,
+        opacity: $('cfg-qp-opacity') ? (parseInt($('cfg-qp-opacity').value, 10) / 100) : 1.0
       };
       qpPost(payload, 'تم حفظ وتطبيق إعدادات البوب-أب');
     });
+
+    // شريط الشفافية — تحديث العرض فوراً
+    var opSlider = $('cfg-qp-opacity');
+    var opVal = $('cfg-qp-opacity-val');
+    if (opSlider && opVal) {
+      opSlider.addEventListener('input', function () {
+        opVal.textContent = opSlider.value + '%';
+      });
+    }
   }
 
   fetch('/api/bg').then(function (r) { return r.json(); }).then(function (d) {
@@ -672,6 +682,13 @@ function renderQuickPopupSettings() {
       sz.value = s.size || 'medium';
     }
     setSwitchState('cfg-qp-save', s.saveReplies !== false);
+    var op = $('cfg-qp-opacity');
+    var opV = $('cfg-qp-opacity-val');
+    if (op) {
+      var pct = Math.round((s.opacity != null ? parseFloat(s.opacity) : 1.0) * 100);
+      op.value = pct;
+      if (opV) opV.textContent = pct + '%';
+    }
     qpHotkeyWarning(s.hotkey || '');
   }).catch(function () { });
 }

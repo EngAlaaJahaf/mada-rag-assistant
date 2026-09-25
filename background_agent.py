@@ -394,6 +394,25 @@ class QuickToast:
         self.win.overrideredirect(True)
         self.win.attributes("-topmost", True)
         self.win.configure(bg=self.c["card"])
+        try:
+            hwnd = ctypes.windll.user32.GetParent(self.win.winfo_id())
+            if not hwnd:
+                hwnd = self.win.winfo_id()
+            ex = ctypes.windll.user32.GetWindowLongW(hwnd, -20)
+            ctypes.windll.user32.SetWindowLongW(hwnd, -20, ex | 0x08000000)  # WS_EX_NOACTIVATE
+        except Exception:
+            pass
+
+        # تطبيق الشفافية المحفوظة
+        try:
+            raw_op = settings.get("opacity")
+            if raw_op is not None:
+                self._opacity = max(0.2, min(1.0, float(raw_op)))
+            else:
+                self._opacity = 1.0
+        except (ValueError, TypeError):
+            self._opacity = 1.0
+        self.win.attributes("-alpha", self._opacity)
 
         # مقبض السحب العلوي (تعديل الارتفاع بالسحب للأعلى أو الأسفل)
         self.top_edge = tk.Frame(self.win, bg=self.c["card"], height=4, cursor="size_ns")
@@ -451,6 +470,31 @@ class QuickToast:
         self.btn_copy.bind("<Button-1>", lambda e: self._do_copy(answer))
         self.btn_copy.bind("<Enter>", lambda e: self.btn_copy.config(fg=self.c["accent"]))
         self.btn_copy.bind("<Leave>", lambda e: self.btn_copy.config(fg=self.c["fg"]))
+
+        # شريط الشفافية
+        self._opacity_scale = tk.Scale(
+            self.head,
+            from_=20, to=100,
+            orient="horizontal",
+            length=70,
+            showvalue=False,
+            sliderlength=12,
+            width=6,
+            bd=0,
+            highlightthickness=0,
+            troughcolor=self.c["bg"],
+            bg=self.c["card"],
+            activebackground=self.c["accent"],
+            fg=self.c["muted"],
+            cursor="hand2",
+            command=self._on_opacity_change,
+        )
+        self._opacity_scale.set(int(self._opacity * 100))
+        self._opacity_scale.pack(side="right", padx=(0, 4))
+        # تسمية أيقونة الشفافية
+        self._opacity_lbl = tk.Label(self.head, text="◑", fg=self.c["muted"], bg=self.c["card"],
+                                     font=("Segoe UI", 9), cursor="hand2")
+        self._opacity_lbl.pack(side="right", padx=(0, 2))
 
         # زر تبديل الثيم الرسومي الفيكتور (أيقونة CSS/SVG بدون إيموجي)
         self.btn_theme_canvas = tk.Canvas(self.head, width=20, height=20, bg=self.c["card"],
@@ -799,6 +843,50 @@ class QuickToast:
 
         threading.Thread(target=_write, daemon=True).start()
 
+    def _on_opacity_change(self, val):
+        """يُستدعى فور تحريك شريط الشفافية."""
+        try:
+            v = max(0.2, min(1.0, int(val) / 100.0))
+            self._opacity = v
+            self.win.attributes("-alpha", v)
+        except Exception:
+            pass
+        # نحفظ بعد 400ms لتجنب الكتابة المتكررة أثناء السحب
+        if getattr(self, "_opacity_after_id", None):
+            try:
+                self.win.after_cancel(self._opacity_after_id)
+            except Exception:
+                pass
+        self._opacity_after_id = self.win.after(
+            400, lambda: self._save_opacity(self._opacity)
+        )
+
+    def _save_opacity(self, v):
+        # تحديث في الذاكرة
+        try:
+            with self.settings._lock:
+                self.settings.cfg["opacity"] = v
+        except Exception:
+            pass
+
+        # كتابة مباشرة في bg_config.json
+        def _write():
+            try:
+                cfg_path = os.path.join(ROOT, "bg_config.json")
+                try:
+                    with open(cfg_path, "r", encoding="utf-8") as f:
+                        cfg = json.load(f)
+                except Exception:
+                    cfg = {}
+                cfg["opacity"] = v
+                with open(cfg_path, "w", encoding="utf-8") as f:
+                    json.dump(cfg, f, ensure_ascii=False, indent=2)
+                _log("تم حفظ شفافية النافذة: %.0f%%" % (v * 100))
+            except Exception as e:
+                _log("تعذر حفظ الشفافية: " + repr(e)[:60])
+
+        threading.Thread(target=_write, daemon=True).start()
+
     def _set_pause(self, paused):
         self._paused = paused
 
@@ -1070,8 +1158,8 @@ def main():
         if settings.load():
             hi = st.get("hi")
             cur = (settings.get("hotkey", ""), settings.get("reopen_hotkey", ""))
-            # أعد محاولة تسجيل أي اختصار فشل سابقاً (حتى لو لم يتغير النص)
-            if hi != cur or st.get("hk_fail"):
+            # تحديث الاختصارات فقط عند تغييرها من الإعدادات لمنع التكرار المزعج
+            if hi != cur:
                 apply_hotkeys()
             if settings.get("enabled", True) is False:
                 _log("تم إيقاف البوب-أب من الإعدادات")

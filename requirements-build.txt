@@ -1,0 +1,7 @@
+# Direct application dependencies, plus the executable builder.
+python-docx
+python-pptx
+openpyxl
+pypdf
+scikit-learn
+pyinstaller

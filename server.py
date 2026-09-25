@@ -510,6 +510,7 @@ DEFAULT_BG = {
     "custom_height": None,
     "custom_x": None,
     "custom_y": None,
+    "opacity": 1.0,
     "saveReplies": True,
 }
 
@@ -588,6 +589,17 @@ def sanitize_bg(data):
                     out[pos_k] = max(min_v, min(max_v, val))
                 except (ValueError, TypeError):
                     pass
+    # حفظ شفافية النافذة في نطاق 0.2–1.0
+    if "opacity" in data:
+        v = data.get("opacity")
+        if v is None:
+            out["opacity"] = 1.0
+        else:
+            try:
+                val = float(v)
+                out["opacity"] = round(max(0.2, min(1.0, val)), 2)
+            except (ValueError, TypeError):
+                pass
     if out.get("size") != "custom" and "size" in data and data["size"] in ("small", "medium", "wide"):
         out["custom_width"] = None
         out["custom_height"] = None
@@ -1268,9 +1280,12 @@ def _agent_process_name():
 
 
 def _agent_alive():
-    """يتحقق من الوكيل عبر ملفه PID — يعمل بسرعة وكفاءة عبر Win32 / psutil."""
-    if _agent_proc is not None and _agent_proc.poll() is None:
-        return True
+    """يتحقق من الوكيل عبر كائن العملية وملف PID."""
+    global _agent_proc
+    if _agent_proc is not None:
+        if _agent_proc.poll() is None:
+            return True
+        _agent_proc = None
     pid = _read_agent_pid()
     if not pid:
         return False
@@ -1279,8 +1294,8 @@ def _agent_alive():
         if psutil.pid_exists(pid):
             p = psutil.Process(pid)
             if p.is_running() and p.status() != psutil.STATUS_ZOMBIE:
-                cmd = " ".join(p.cmdline() or [])
-                if "background_agent" in cmd:
+                pname = p.name().lower()
+                if "python" in pname or "mada-rag" in pname:
                     return True
     except Exception:
         pass
@@ -1288,7 +1303,7 @@ def _agent_alive():
         kernel32 = ctypes.windll.kernel32
         h = kernel32.OpenProcess(0x1000, False, pid)
         if h:
-            code = wt.DWORD()
+            code = ctypes.c_ulong()
             kernel32.GetExitCodeProcess(h, ctypes.byref(code))
             kernel32.CloseHandle(h)
             return code.value == 259
@@ -1302,12 +1317,13 @@ def _kill_stale_agents():
     mine = os.getpid()
     try:
         import psutil
-        for p in psutil.process_iter(["pid", "cmdline"]):
+        for p in psutil.process_iter(["pid", "name", "cmdline"]):
             try:
                 if p.info["pid"] == mine:
                     continue
                 cmd = " ".join(p.info["cmdline"] or [])
-                if "background_agent.py" in cmd or "--background-agent" in cmd:
+                pname = (p.info["name"] or "").lower()
+                if "--background-agent" in cmd or "background_agent.py" in cmd:
                     p.terminate()
             except Exception:
                 pass
@@ -1321,7 +1337,6 @@ def start_background_agent():
     if not cfg.get("enabled", True):
         return
     if _agent_alive():
-        _agent_proc = None
         return
     _kill_stale_agents()
     script = os.path.join(ROOT, "background_agent.py")
@@ -1347,15 +1362,25 @@ def stop_background_agent():
         except Exception:
             pass
         _agent_proc = None
+    _kill_stale_agents()
+    try:
+        if os.path.isfile(AGENT_PID):
+            os.remove(AGENT_PID)
+    except Exception:
+        pass
 
 
 def _watchdog_loop():
     while True:
-        time.sleep(5)
-        cfg = load_bg_config()
-        if not cfg.get("enabled", True):
-            continue
-        start_background_agent()
+        time.sleep(10)
+        try:
+            cfg = load_bg_config()
+            if not cfg.get("enabled", True):
+                continue
+            if not _agent_alive():
+                start_background_agent()
+        except Exception:
+            pass
 
 
 def stream_llm(messages, temperature=0.6, max_tokens=600, endpoint=None, model=None, api_key=None):
