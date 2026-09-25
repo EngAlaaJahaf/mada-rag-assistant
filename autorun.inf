@@ -1,0 +1,5 @@
+[AutoRun]
+open=00_اضغط_هنا_لتشغيل_التطبيق.bat
+action=تشغيل مساعد مدى الذكي (Mada-RAG)
+icon=mada-rag\mada-rag-server.exe,0
+label=مساعد مدى الذكي
