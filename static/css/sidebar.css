@@ -64,6 +64,9 @@ body.sb-collapsed #sidebar{width:0;border-left:0;overflow:hidden}
 .chat-item:hover{background:var(--panel-hover);color:var(--text)}
 .chat-item.active{background:var(--panel-hover);color:var(--text);font-weight:600}
 .ci-title{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ci-date{font-size:11px;color:var(--muted);white-space:nowrap;margin-left:auto;margin-right:6px;opacity:0.75;flex-shrink:0;direction:rtl}
+.chat-item:hover .ci-date{opacity:0.95}
+.chat-item.active .ci-date{color:var(--accent);opacity:1}
 .kebabbtn{
   width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;
   color:var(--muted);opacity:0;transition:background .12s,opacity .12s;

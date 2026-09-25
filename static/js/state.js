@@ -103,6 +103,13 @@ var fmFilterInput = $('fm-filter-input');
 var activeFilterBar = $('active-filter-bar');
 var afNames = $('af-names');
 var allServerFiles = [];
-var selectedScopedFiles = [];
+var selectedScopedFiles = (function () {
+  try {
+    var raw = localStorage.getItem('mada_scoped_files');
+    return raw ? (JSON.parse(raw) || []) : [];
+  } catch (e) {
+    return [];
+  }
+})();
 var attachedFiles = [];
 

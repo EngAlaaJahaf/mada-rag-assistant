@@ -85,10 +85,17 @@ async function uploadFile(file) {
   var cardId = 'att-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
   var card = el('div', 'attach-card uploading');
   card.id = cardId;
+  var isImg = (file.type && file.type.startsWith('image/')) || /\.(png|jpe?g|bmp|webp|tiff)$/i.test(file.name);
+  var iconHtml = isImg
+    ? '<img src="' + URL.createObjectURL(file) + '" class="attach-thumb" alt="معاينة">'
+    : '<svg class="attach-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+
   card.innerHTML =
-    '<svg class="attach-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' +
-    '<span class="attach-name">' + esc(file.name) + '</span>' +
-    '<span class="attach-status">جاري الرفع والفهرسة...</span>';
+    iconHtml +
+    '<div class="attach-meta" style="min-width:0;display:flex;flex-direction:column;">' +
+      '<span class="attach-name" title="' + esc(file.name) + '">' + esc(file.name) + '</span>' +
+      '<span class="attach-status">جاري الرفع والفهرسة...</span>' +
+    '</div>';
   attachBar.appendChild(card);
 
   var fd = new FormData();
@@ -100,10 +107,12 @@ async function uploadFile(file) {
     if (data.ok && data.saved && data.saved.length) {
       card.className = 'attach-card success';
       card.querySelector('.attach-status').innerHTML = '✓ مفهرس وجاهز';
-      attachedFiles.push(file.name);
+      var savedName = data.saved[0];
+      attachedFiles.push(savedName);
+      applyScopedFiles([savedName]);
       selectMode('review');
       if (!taEl.value.trim()) {
-        taEl.placeholder = 'اسأل عن محتوى ' + file.name + '...';
+        taEl.placeholder = 'اسأل عن محتوى ' + savedName + '...';
       }
       loadServerFiles();
     } else {
@@ -134,6 +143,7 @@ function getFileIcon(ext) {
   if (e === '.docx') return '📘';
   if (e === '.py' || e === '.js' || e === '.html' || e === '.css') return '💻';
   if (e === '.json') return '🔢';
+  if (['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.webp'].indexOf(e) !== -1) return '🖼️';
   return '📄';
 }
 
@@ -146,6 +156,22 @@ async function loadServerFiles() {
       return { name: f, size: 0, chunks: 0, ext: f.slice(f.lastIndexOf('.')) };
     });
     fmStats.textContent = allServerFiles.length + ' ملفات متوفرة · ' + (data.chunks || 0) + ' مقطع مفهرس';
+    
+    // تنقية الملفات المحصورة والتأكد من وجودها على الخادم
+    var availMap = {};
+    allServerFiles.forEach(function (f) { availMap[f.name] = true; });
+    var validScoped = selectedScopedFiles.filter(function (fname) { return availMap[fname]; });
+    if (validScoped.length !== selectedScopedFiles.length) {
+      selectedScopedFiles = validScoped;
+      try {
+        if (selectedScopedFiles.length > 0) {
+          localStorage.setItem('mada_scoped_files', JSON.stringify(selectedScopedFiles));
+        } else {
+          localStorage.removeItem('mada_scoped_files');
+        }
+      } catch (e) {}
+    }
+    updateActiveFilterBar();
     renderFilesModalList(fmFilterInput.value);
   } catch (e) {
     fmStats.textContent = 'تعذر تحميل قائمة الملفات';
@@ -168,10 +194,17 @@ function renderFilesModalList(query) {
 
     var icon = getFileIcon(f.ext);
     var metaText = formatBytes(f.size) + (f.chunks ? ' · ' + f.chunks + ' مقطع' : '');
+    var isImage = ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.webp'].indexOf((f.ext || '').toLowerCase()) !== -1;
+
+    var iconHtml = isImage
+      ? '<a href="/uploads/' + encodeURIComponent(f.name) + '" target="_blank" class="fm-thumb-wrap" title="انقر لعرض الصورة بالحجم الكامل">' +
+          '<img src="/uploads/' + encodeURIComponent(f.name) + '" class="fm-thumb-img" alt="' + esc(f.name) + '" loading="lazy" onerror="this.onerror=null;this.parentElement.innerHTML=\'🖼️\';">' +
+        '</a>'
+      : '<span class="fm-item-icon" style="font-size:18px;">' + icon + '</span>';
 
     item.innerHTML =
       '<input type="checkbox" class="fm-item-check"' + (isChecked ? ' checked' : '') + '>' +
-      '<span class="fm-item-icon" style="font-size:18px;">' + icon + '</span>' +
+      iconHtml +
       '<div class="fm-item-info">' +
         '<div class="fm-item-name" title="' + esc(f.name) + '">' + esc(f.name) + '</div>' +
         '<div class="fm-item-meta">' + metaText + '</div>' +
@@ -224,9 +257,20 @@ function closeFilesModal() {
   filesModal.classList.add('hidden');
 }
 
-function applyScopedFiles(files) {
-  selectedScopedFiles = files.slice();
+function persistScopedFiles() {
+  try {
+    if (selectedScopedFiles && selectedScopedFiles.length > 0) {
+      localStorage.setItem('mada_scoped_files', JSON.stringify(selectedScopedFiles));
+    } else {
+      localStorage.removeItem('mada_scoped_files');
+    }
+  } catch (e) {}
   updateActiveFilterBar();
+}
+
+function applyScopedFiles(files) {
+  selectedScopedFiles = (files || []).slice();
+  persistScopedFiles();
   closeFilesModal();
   if (selectedScopedFiles.length > 0) {
     selectMode('review');
@@ -234,18 +278,32 @@ function applyScopedFiles(files) {
 }
 
 function updateActiveFilterBar() {
+  if (!activeFilterBar || !afNames) return;
   if (!selectedScopedFiles || selectedScopedFiles.length === 0) {
     activeFilterBar.classList.add('hidden');
-    afNames.textContent = '';
+    afNames.innerHTML = '';
   } else {
     activeFilterBar.classList.remove('hidden');
+    var thumbsHtml = '';
+    selectedScopedFiles.forEach(function (fname) {
+      if (/\.(png|jpe?g|bmp|webp|tiff)$/i.test(fname)) {
+        thumbsHtml += '<a href="/uploads/' + encodeURIComponent(fname) + '" target="_blank" title="' + esc(fname) + '">' +
+          '<img src="/uploads/' + encodeURIComponent(fname) + '" class="af-thumb" alt="' + esc(fname) + '">' +
+        '</a>';
+      }
+    });
+    var namesText = '';
     if (selectedScopedFiles.length <= 2) {
-      afNames.textContent = selectedScopedFiles.join('، ');
+      namesText = selectedScopedFiles.join('، ');
     } else {
-      afNames.textContent = selectedScopedFiles[0] + ' و ' + (selectedScopedFiles.length - 1) + ' ملفات أخرى';
+      namesText = selectedScopedFiles[0] + ' و ' + (selectedScopedFiles.length - 1) + ' ملفات أخرى';
     }
+    afNames.innerHTML = thumbsHtml + '<span style="vertical-align:middle;">' + esc(namesText) + '</span>';
   }
+  updateFmSelectionStatus();
 }
+
+try { updateActiveFilterBar(); } catch (e) {}
 
 /* ================= Search Spotlight Modal ================= */
 function openSearchModal() {

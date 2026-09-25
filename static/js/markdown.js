@@ -1,6 +1,7 @@
 /* ================= Chat model helpers ================= */
 function newId() { return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 function makeChat(mode, projectId) {
+  var now = Date.now();
   return {
     id: newId(),
     project_id: projectId || null,
@@ -8,7 +9,9 @@ function makeChat(mode, projectId) {
     title: '',
     messages: [],
     pinned: false,
-    archived: false
+    archived: false,
+    created_at: now,
+    updated_at: now
   };
 }
 function getChat(id) {
@@ -68,18 +71,50 @@ function miHTML(k) {
 function cbHTML(k) {
   var cb = MD_CBS[k];
   if (!cb) return '';
-  var lang = esc(cb.lang || 'code');
-  return '<div class="cb">' +
+  var rawLang = (cb.lang || '').trim();
+  var displayLang = rawLang ? rawLang.toUpperCase() : 'CODE';
+  var effectiveLang = rawLang.toLowerCase();
+  var highlightedCode = '';
+
+  if (typeof hljs !== 'undefined') {
+    try {
+      if (effectiveLang && hljs.getLanguage(effectiveLang)) {
+        var hRes = hljs.highlight(cb.code, { language: effectiveLang, ignoreIllegals: true });
+        highlightedCode = hRes.value;
+      } else {
+        var hRes = hljs.highlightAuto(cb.code);
+        highlightedCode = hRes.value;
+        if (!rawLang && hRes.language) {
+          effectiveLang = hRes.language;
+          displayLang = hRes.language.toUpperCase();
+        }
+      }
+    } catch (e) {
+      highlightedCode = esc(cb.code);
+    }
+  } else {
+    highlightedCode = esc(cb.code);
+  }
+
+  var safeLangAttr = esc(effectiveLang || 'plaintext');
+
+  return '<div class="cb" data-lang="' + safeLangAttr + '">' +
     '<div class="cb-head">' +
       '<div class="cb-head-left">' +
-        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>' +
-        '<span class="cb-lang">' + lang + '</span>' +
+        '<span class="cb-lang">' + esc(displayLang) + '</span>' +
       '</div>' +
-      '<button class="cb-copy-btn" type="button" title="نسخ الكود">' +
-        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>' +
-      '</button>' +
+      '<div class="cb-head-actions">' +
+        '<button class="cb-btn cb-copy-btn" type="button" title="نسخ الكود">' +
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>' +
+          '<span>Copy</span>' +
+        '</button>' +
+        '<button class="cb-btn cb-download-btn" type="button" title="تنزيل الكود كملف">' +
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
+          '<span>Download</span>' +
+        '</button>' +
+      '</div>' +
     '</div>' +
-    '<pre><code>' + esc(cb.code) + '</code></pre>' +
+    '<pre><code class="hljs language-' + safeLangAttr + '">' + highlightedCode + '</code></pre>' +
   '</div>';
 }
 

@@ -106,10 +106,9 @@ function updateModePill() {
 }
 
 function selectMode(mode) {
-  if (mode === currentMode) { closeModeMenu(); return; }
   currentMode = mode;
   var cur = currentChatId ? getChat(currentChatId) : null;
-  if (cur) {
+  if (cur && cur.mode !== mode) {
     cur.mode = mode;
     saveChats();
   }
@@ -151,25 +150,14 @@ function showErrorBubble(chatEl, msgHtml) {
   msgsEl.scrollTop = msgsEl.scrollHeight;
 }
 
-function renderSourcesNote(chatEl, meta) {
-  var srcEl = chatEl.querySelector('.srcs');
-  if (!meta || !(meta.sources > 0) || !srcEl) return;
-  var files = meta.files || [];
-  var n = meta.sources;
-  var inner = SVG_SOURCE + '<span><b>استندت إلى ' + n + ' ' +
-    (n === 1 ? 'مصدر' : 'مصادر') + '</b>:' + files.slice(0, 5)
-      .map(function (f) { return '<span class="src-file">' + esc(f) + '</span>'; })
-      .join('، ');
-  if (files.length > 5) inner += '…';
-  inner += '</span>';
-  srcEl.innerHTML = inner;
-  srcEl.style.display = 'flex';
-}
+
 
 async function streamChat(chat, resume) {
   var mode = chat.mode;
   if (tempActive && tempChat && tempChat.useFiles === false) {
     mode = 'free';
+  } else if (selectedScopedFiles && selectedScopedFiles.length > 0) {
+    mode = 'review';
   }
   var modelCfg = getModelConfig();
   var personalizedPrompt = buildPersonalizedSystemPrompt();
@@ -316,10 +304,13 @@ function finishStream(ok, chat) {
   if (!ctx) return;
   ctx.mdEl.innerHTML = md(ctx.raw);
   if (ctx.meta) renderSourcesNote(ctx.card, ctx.meta);
-  appendMsgActions(ctx.card);
-  if (!ok) { ctx.finished = true; }
+  var asstTime = Date.now();
+  chat.updated_at = asstTime;
+  appendMsgActions(ctx.card, asstTime);
   if (ctx.raw) {
-    chat.messages.push({ role: 'assistant', content: ctx.raw });
+    var asstMsg = { role: 'assistant', content: ctx.raw, time: asstTime };
+    if (ctx.meta) asstMsg.meta = ctx.meta;
+    chat.messages.push(asstMsg);
     ctx.card.dataset.msgIdx = chat.messages.length - 1;
     if (tempActive && tempChat && chat.id === tempChat.id) {
       saveTempChat();
@@ -340,11 +331,34 @@ function send(text, chatId) {
   var t = (text || '').trim();
   if (!t) return;
 
+  // جمع الصور المرفقة أو المحددة حالياً لتظهر معاينتها المصغرة في رسالة المستخدم
+  var currentImgs = [];
+  if (attachedFiles && attachedFiles.length) {
+    currentImgs = currentImgs.concat(attachedFiles.filter(function (f) { return /\.(png|jpe?g|bmp|webp|tiff)$/i.test(f); }));
+  }
+  if (selectedScopedFiles && selectedScopedFiles.length) {
+    selectedScopedFiles.forEach(function (f) {
+      if (/\.(png|jpe?g|bmp|webp|tiff)$/i.test(f) && currentImgs.indexOf(f) === -1) {
+        currentImgs.push(f);
+      }
+    });
+  }
+
   if (tempActive && tempChat) {
     currentChatId = tempChat.id;
-    tempChat.messages.push({ role: 'user', content: t });
+    var nowTime = Date.now();
+    tempChat.updated_at = nowTime;
+    if (!tempChat.created_at) tempChat.created_at = nowTime;
+    var userMsg = { role: 'user', content: t, time: nowTime };
+    if (currentImgs.length) userMsg.files = currentImgs.slice();
+    tempChat.messages.push(userMsg);
     saveTempChat();
-    renderUserMsg(t);
+    renderUserMsg(t, tempChat.messages.length - 1, currentImgs, nowTime);
+    if (attachBar) {
+      attachBar.innerHTML = '';
+      attachBar.classList.add('hidden');
+    }
+    attachedFiles = [];
     renderEmpty(false);
     streamChat(tempChat);
     return;
@@ -363,9 +377,19 @@ function send(text, chatId) {
   saveActiveChatId(chat.id);
   syncUrlChatId(chat.id);
   if (!chat.title) chat.title = t.slice(0, 42);
-  chat.messages.push({ role: 'user', content: t });
+  var nowTime = Date.now();
+  chat.updated_at = nowTime;
+  if (!chat.created_at) chat.created_at = nowTime;
+  var userMsg = { role: 'user', content: t, time: nowTime };
+  if (currentImgs.length) userMsg.files = currentImgs.slice();
+  chat.messages.push(userMsg);
 
-  renderUserMsg(t);
+  renderUserMsg(t, chat.messages.length - 1, currentImgs, nowTime);
+  if (attachBar) {
+    attachBar.innerHTML = '';
+    attachBar.classList.add('hidden');
+  }
+  attachedFiles = [];
   renderSidebar();
   persistChat(chat);
   renderEmpty(false);

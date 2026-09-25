@@ -22,12 +22,15 @@ subprocess.run([
     '--add-data', f'{ROOT / "index.html"}{sep}.',
     '--add-data', f'{ROOT / "chat.html"}{sep}.',
     '--add-data', f'{ROOT / "static"}{sep}static',
+    '--add-data', f'{ROOT / "plugins"}{sep}plugins',
     str(ROOT / 'frozen_entry.py'),
 ], cwd=ROOT, check=True)
 
 for name in ('index.html', 'chat.html'):
     shutil.copy2(ROOT / name, ROOT / 'dist' / name)
 shutil.copytree(ROOT / 'static', ROOT / 'dist' / 'static', dirs_exist_ok=True)
+if (ROOT / 'plugins').is_dir():
+    shutil.copytree(ROOT / 'plugins', ROOT / 'dist' / 'plugins', dirs_exist_ok=True)
 packages = subprocess.check_output([sys.executable, '-m', 'pip', 'freeze'], text=True)
 (ROOT / 'requirements-build.lock.txt').write_text(packages, encoding='utf-8')
 print('BUILD COMPLETE:', ROOT / 'dist' / 'mada-rag-server.exe')

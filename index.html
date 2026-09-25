@@ -140,6 +140,9 @@
   .chip .del-btn:hover{color:#dc2626;background:rgba(220,38,38,.12)}
   .chip .del-btn svg{width:13px;height:13px}
   .chip .del-btn:disabled{opacity:.4;cursor:wait}
+  .chip-thumb{width:22px;height:22px;border-radius:4px;object-fit:cover;vertical-align:middle;border:1px solid var(--line);display:block}
+  .chip-img-link{display:inline-flex;align-items:center;text-decoration:none}
+  .rv-thumb{width:18px;height:18px;border-radius:3px;object-fit:cover;vertical-align:-3px;margin-inline-end:4px;border:1px solid var(--line)}
   .statusline{font-size:12px;color:var(--mut);margin-top:10px;min-height:18px}
 
   /* ============ البحث ============ */
@@ -476,7 +479,8 @@
 
           d.files.forEach(function(f){
             var ext = f.split('.').pop().toLowerCase();
-            var iconText = ext === 'pdf' ? '📄' : (ext === 'docx' ? '📝' : (ext === 'pptx' ? '📊' : (ext === 'xlsx' ? '📈' : '📃')));
+            var isImg = /^(png|jpe?g|bmp|webp|tiff)$/i.test(ext);
+            var iconText = isImg ? '🖼️' : (ext === 'pdf' ? '📄' : (ext === 'docx' ? '📝' : (ext === 'pptx' ? '📊' : (ext === 'xlsx' ? '📈' : '📃'))));
 
             // إضافة للخيار في قائمة النطاق
             var opt = document.createElement('option');
@@ -485,13 +489,27 @@
             fileScope.appendChild(opt);
 
             // بطاقة الملف
-            var c=document.createElement('span'); c.className='chip';
+            var c=document.createElement('span'); c.className='chip' + (isImg ? ' chip-img' : '');
             c.setAttribute('data-file', f);
             if(f === curScope) c.classList.add('chip-active');
 
+            if (isImg) {
+              var imgA = document.createElement('a');
+              imgA.href = '/uploads/' + encodeURIComponent(f);
+              imgA.target = '_blank';
+              imgA.className = 'chip-img-link';
+              imgA.title = 'فتح الصورة بالحجم الكامل: ' + f;
+              var imgEl = document.createElement('img');
+              imgEl.src = '/uploads/' + encodeURIComponent(f);
+              imgEl.className = 'chip-thumb';
+              imgEl.alt = f;
+              imgA.appendChild(imgEl);
+              c.appendChild(imgA);
+            }
+
             var nameSpan = document.createElement('span');
             nameSpan.className = 'file-name';
-            nameSpan.textContent = iconText + ' ' + f;
+            nameSpan.textContent = (isImg ? '' : (iconText + ' ')) + f;
             nameSpan.title = 'اضغط لحصر الإجابة والبحث في هذا الملف فقط';
             nameSpan.addEventListener('click', function(){
               setFileScope(fileScope.value === f ? '' : f);
@@ -572,6 +590,35 @@
     fi.addEventListener('change',function(){
       if(fi.files.length) upload([].slice.call(fi.files));
       fi.value='';
+    });
+    // دعم اللصق المباشر عبر Ctrl + V للصور والملفات
+    window.addEventListener('paste', function(e){
+      if(!e.clipboardData) return;
+      var files = [];
+      if(e.clipboardData.files && e.clipboardData.files.length){
+        files = [].slice.call(e.clipboardData.files);
+      } else if(e.clipboardData.items){
+        for(var i=0; i<e.clipboardData.items.length; i++){
+          var it = e.clipboardData.items[i];
+          if(it.kind === 'file'){
+            var f = it.getAsFile();
+            if(f) files.push(f);
+          }
+        }
+      }
+      if(files.length){
+        var normalized = files.map(function(f, idx){
+          if(!f.name || f.name === 'image.png' || f.name === 'blob'){
+            var d = new Date();
+            var ts = d.getFullYear() + '' + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0') + '_' + String(d.getHours()).padStart(2,'0') + String(d.getMinutes()).padStart(2,'0') + String(d.getSeconds()).padStart(2,'0');
+            var ext = f.type ? ('.' + f.type.split('/')[1].replace('jpeg','jpg')) : '.png';
+            return new File([f], 'لقطة_شاشة_' + ts + (idx > 0 ? '_' + idx : '') + ext, {type: f.type || 'image/png'});
+          }
+          return f;
+        });
+        e.preventDefault();
+        upload(normalized);
+      }
     });
     function upload(files){
       if(!files||!files.length) return;
@@ -970,7 +1017,12 @@
           var meta=document.createElement('div'); meta.className='meta';
           var num=document.createElement('span'); num.className='num'; num.textContent='№ '+(i+1);
           var cite=document.createElement('span'); cite.className='cite';
-          cite.textContent=r.file+(r.ref&&r.ref!=='main'?' · '+r.ref:'');
+          var isImg = /\.(png|jpe?g|bmp|webp|tiff)$/i.test(r.file);
+          if (isImg) {
+            cite.innerHTML = '<a href="/uploads/' + encodeURIComponent(r.file) + '" target="_blank" class="chip-img-link" title="عرض الصورة"><img src="/uploads/' + encodeURIComponent(r.file) + '" class="rv-thumb" alt=""></a> ' + esc(r.file) + (r.ref && r.ref !== 'main' ? ' · ' + esc(r.ref) : '');
+          } else {
+            cite.textContent=r.file+(r.ref&&r.ref!=='main'?' · '+r.ref:'');
+          }
           cite.title=r.file+' / '+r.ref;
           var sc=document.createElement('span'); sc.className='score'; sc.textContent=r.score+'%';
           var cp=document.createElement('button'); cp.className='cp';

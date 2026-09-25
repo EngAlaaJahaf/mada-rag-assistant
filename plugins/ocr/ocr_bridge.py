@@ -5,6 +5,7 @@
 يدعم ملفات الصور (PNG, JPG, JPEG, BMP, TIFF, WEBP) وملفات PDF الممسوحة ضوئياً.
 """
 
+import re
 import os
 import sys
 import json
@@ -128,25 +129,40 @@ def fix_arabic_bidi(text):
     return "\n".join(fixed_lines)
 
 
+def clean_ocr_text(text):
+    """تنظيف النصوص المستخرجة وحذف شوائب الرموز والأيقونات المعزولة."""
+    if not text:
+        return ""
+    lines = []
+    for line in text.splitlines():
+        l_str = line.strip()
+        # استبعاد الأسطر الفارغة أو الأسطر المكونة فقط من رموز خاصة وأقواس
+        if not l_str or re.fullmatch(r"[\W_]+", l_str):
+            continue
+        lines.append(l_str)
+    return "\n\n".join(lines)
+
+
 def preprocess_image_for_ocr(img_path, output_path):
-    """تحسين الصورة لزيادة دقة استخراج النص العربي."""
+    """تحسين الصورة لزيادة دقة استخراج النص العربي دون تشويه الخطوط."""
     if not HAS_PIL:
         shutil.copyfile(img_path, output_path)
         return
 
     with Image.open(img_path) as img:
-        # تحويل للصورة الرمادية Grayscale
-        gray = img.convert("L")
+        # معالجة الشفافية للأيقونات ولقطات الشاشة الشفافة ودمجها مع خلفية بيضاء
+        if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+            bg = Image.new("RGB", img.size, (255, 255, 255))
+            if img.mode != "RGBA":
+                img = img.convert("RGBA")
+            bg.paste(img, mask=img.split()[3])
+            img = bg
+        else:
+            img = img.convert("RGB")
 
-        # تعزيز التباين Autocontrast
-        enhanced = ImageOps.autocontrast(gray, cutoff=1)
-
-        # تكبير الصور الصغيرة إذا كانت دقتها منخفضة (أقل من 1000px عرض)
-        w, h = enhanced.size
-        if w < 1000 and h < 1000:
-            enhanced = enhanced.resize((w * 2, h * 2), Image.Resampling.LANCZOS)
-
-        enhanced.save(output_path, dpi=(300, 300))
+        # تحويل للصورة الرمادية Grayscale مع تعزيز التباين
+        gray = ImageOps.autocontrast(img.convert("L"), cutoff=1)
+        gray.save(output_path, dpi=(300, 300))
 
 
 def run_tesseract_on_image(img_path, tess_exe, tess_data, lang="ara+eng", psm=3):
@@ -179,8 +195,8 @@ def run_tesseract_on_image(img_path, tess_exe, tess_data, lang="ara+eng", psm=3)
         )
 
         raw_text = res.stdout.decode("utf-8", errors="replace").strip()
-        fixed_text = fix_arabic_bidi(raw_text)
-        return True, fixed_text, ""
+        cleaned = clean_ocr_text(raw_text)
+        return True, cleaned, ""
     except subprocess.TimeoutExpired:
         return False, "", "تجاوزت مهلة معالجة الصورة (Timeout)"
     except Exception as e:

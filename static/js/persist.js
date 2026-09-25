@@ -79,8 +79,11 @@ window.addEventListener('beforeunload', function () {
       var tMsgs = tempChat.messages.slice();
       if (tMsgs.length && tMsgs[tMsgs.length - 1].role === 'assistant') {
         tMsgs[tMsgs.length - 1].content = ctx.raw;
+        if (ctx.meta) tMsgs[tMsgs.length - 1].meta = ctx.meta;
       } else {
-        tMsgs.push({ role: 'assistant', content: ctx.raw });
+        var mObj = { role: 'assistant', content: ctx.raw };
+        if (ctx.meta) mObj.meta = ctx.meta;
+        tMsgs.push(mObj);
       }
       tempChat.messages = tMsgs;
       saveTempChat();
@@ -94,8 +97,11 @@ window.addEventListener('beforeunload', function () {
   var msgs = chat.messages.slice();
   if (msgs.length && msgs[msgs.length - 1].role === 'assistant') {
     msgs[msgs.length - 1].content = ctx.raw;
+    if (ctx.meta) msgs[msgs.length - 1].meta = ctx.meta;
   } else {
-    msgs.push({ role: 'assistant', content: ctx.raw });
+    var mObj = { role: 'assistant', content: ctx.raw };
+    if (ctx.meta) mObj.meta = ctx.meta;
+    msgs.push(mObj);
   }
   var body = JSON.stringify({ chat: {
     id: chat.id,

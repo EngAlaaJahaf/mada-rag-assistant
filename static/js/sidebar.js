@@ -115,7 +115,11 @@ function renderSidebar() {
 
   listEmptyEl.classList.toggle('hidden', rootChats.length > 0 || (projects.length > 0));
   for (var rk = 0; rk < rootChats.length; rk++) {
-    chatListEl.appendChild(createChatItemEl(rootChats[rk]));
+    try {
+      chatListEl.appendChild(createChatItemEl(rootChats[rk]));
+    } catch (e) {
+      console.error('Failed to create chat item:', e);
+    }
   }
 }
 
@@ -131,6 +135,18 @@ function createChatItemEl(c) {
 
   var title = c.title || 'محادثة جديدة';
   item.appendChild(el('span', 'ci-title', esc(title)));
+
+  var cDate = c.updated_at || c.created_at;
+  if (cDate && typeof formatConversationDateLabel === 'function') {
+    var dateLabel = formatConversationDateLabel(cDate);
+    if (dateLabel) {
+      var dateEl = el('span', 'ci-date', esc(dateLabel));
+      if (typeof formatFullTimestamp === 'function') {
+        dateEl.title = formatFullTimestamp(cDate);
+      }
+      item.appendChild(dateEl);
+    }
+  }
 
   var actionsWrap = el('div', 'ci-actions', '');
   actionsWrap.style.display = 'flex';

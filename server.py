@@ -400,9 +400,25 @@ def translate_text(text, direction="en2ar"):
     return None
 
 
+def needs_translation_to_ar(text):
+    """التحقق مما إذا كان النص يحتاج حقاً إلى ترجمة إلى العربية (نص إنجليزي في الغالب).
+    إذا كان النص يحتوي على نصوص عربية، فلا يُترجم لتجنب هلوسات نماذج الترجمة."""
+    if not text or not str(text).strip():
+        return False
+    ar_count = sum(1 for c in text if "\u0600" <= c <= "\u06FF")
+    en_count = sum(1 for c in text if ("a" <= c <= "z" or "A" <= c <= "Z"))
+    if ar_count >= 8 or ar_count > en_count:
+        return False
+    return en_count >= 15
+
+
 def translate_results(results, n=TRANSLATE_MAX_RESULTS):
     for r in results[:n]:
-        ar = translate_text(r["text"])
+        txt = r.get("text", "")
+        if not needs_translation_to_ar(txt):
+            r["ar"] = None
+            continue
+        ar = translate_text(txt)
         if ar and ar.strip():
             r["ar"] = ar.strip()
     return results
@@ -941,9 +957,11 @@ def generate_answer(query, results, target_file=None):
     lines = []
     for r in results[:8]:
         t = r.get("text", "").strip()[:800]
-        a = r.get("ar", "").strip()[:500]
-        lines.append("[%s]\n%s" % (r.get("file", ""), t))
-        if a:
+        a = r.get("ar", "").strip()[:500] if r.get("ar") else ""
+        ref = (r.get("ref") or "").strip()
+        header = f"{r.get('file', '')} — {ref}" if ref else r.get("file", "")
+        lines.append("[%s]\n%s" % (header, t))
+        if a and needs_translation_to_ar(t):
             lines.append("بالعربية: " + a)
     chunks = "\n\n".join(lines)
     if target_file:
@@ -994,8 +1012,9 @@ CHAT_SYSTEM_FREE = (
     "للمعادلات المنفصلة استخدم \\[ ... \\] أو $$ ... $$، وللرموز داخل النص استخدم \\( ... \\) أو $ ... $."
 )
 CHAT_SYSTEM_RAG = (
-    "أنت مساعد مراجعة يعتمد فقط على المحتوى داخل <sources></sources> من ملفات المستخدم. "
-    "أجب بالعربية الفصحى وأذكر المصطلحات العلمية بالإنجليزية بين قوسين. "
+    "أنت مساعد مراجعة يعتمد فقط على المحتوى داخل <sources></sources> من ملفات ومستندات المستخدم. "
+    "أجب بالعربية الفصحى واذكر المصطلحات العلمية بالإنجليزية بين قوسين. "
+    "عند السؤال عن رقم الصفحة أو الشريحة أو الموضع، استند حصرياً إلى رقم الصفحة أو الشريحة المذكور في ترويسة كل مقطع [اسم الملف — صفحة X / شريحة X]، وتجنب تماماً الخلط بين أرقام الصفحات وبين أي أرقام قد ترد في اسم الملف نفسه (مثل -pages-5.pdf). "
     "إذا كانت الإجابة تتضمن بيانات مجدولة أو سجلات أو مقارنات فاعرضها دائماً في جدول ماركداون منظم بأعمدة واضحة. "
     "عند كتابة المعادلات الرياضية أو الرموز العلمية، اكتبها دائماً بصيغة LaTeX القياسية: "
     "للمعادلات المنفصلة استخدم \\[ ... \\] أو $$ ... $$، وللرموز داخل النص استخدم \\( ... \\) أو $ ... $. "
@@ -1475,9 +1494,11 @@ def build_rag_sources(results, max_total_chars=6000):
     total = 0
     for r in results[:8]:
         t = r.get("text", "").strip()[:800]
-        a = r.get("ar", "").strip()[:500]
-        entry = "[%s]\n%s" % (r.get("file", ""), t)
-        if a:
+        a = r.get("ar", "").strip()[:500] if r.get("ar") else ""
+        ref = (r.get("ref") or "").strip()
+        header = f"{r.get('file', '')} — {ref}" if ref else r.get("file", "")
+        entry = "[%s]\n%s" % (header, t)
+        if a and needs_translation_to_ar(t):
             entry += "\nبالعربية: " + a
         if total + len(entry) > max_total_chars and lines:
             break
@@ -1555,6 +1576,8 @@ PLUGIN_OCR_PY = os.path.join(PLUGIN_OCR_DIR, "ocr_bridge.py")
 
 def ocr_available():
     """التحقق الآمن من توفر ملحق OCR ومحرك التعرّف دون التأثير على عمل التطبيق الأساسي."""
+    if getattr(sys, "frozen", False):
+        return True
     if os.path.isfile(PLUGIN_OCR_EXE):
         return True
     if os.path.isfile(PLUGIN_OCR_PY):
@@ -1567,7 +1590,9 @@ def call_ocr_plugin(file_path, lang="ara+eng", timeout=120):
     if not ocr_available():
         return {"ok": False, "error": "OCR plugin not installed"}
 
-    if os.path.isfile(PLUGIN_OCR_EXE):
+    if getattr(sys, "frozen", False):
+        cmd = [sys.executable, "--ocr-plugin", "--file", str(file_path), "--lang", lang]
+    elif os.path.isfile(PLUGIN_OCR_EXE):
         cmd = [PLUGIN_OCR_EXE, "--file", str(file_path), "--lang", lang]
     else:
         interp = sys.executable
@@ -1762,6 +1787,8 @@ def search(q, top_n=6, target_file=None, target_files=None):
         if t_files and CHUNKS[i]["f"] not in t_files:
             scores[i] = 0
             continue
+        if CHUNKS[i]["f"] in q or os.path.splitext(CHUNKS[i]["f"])[0] in q:
+            scores[i] += 2.0
         wtoks = set(tokenize(CHUNKS[i]["t"]))
         inter = len(qtoks & wtoks)
         if inter:
@@ -1785,6 +1812,15 @@ def search(q, top_n=6, target_file=None, target_files=None):
         })
         if len(out) >= top_n:
             break
+    if not out and t_files:
+        target_chunks = [c for c in CHUNKS if c.get("f") in t_files]
+        if target_chunks:
+            out = [{
+                "text": c["t"],
+                "file": c["f"],
+                "ref": c.get("ref", ""),
+                "score": 100.0
+            } for c in target_chunks[:top_n]]
     return out
 
 
@@ -1798,6 +1834,8 @@ def _scores(q, target_file=None, target_files=None):
     for i, sc in enumerate(scores):
         if t_files and CHUNKS[i]["f"] not in t_files:
             continue
+        if CHUNKS[i]["f"] in q or os.path.splitext(CHUNKS[i]["f"])[0] in q:
+            scores[i] += 2.0
         wtoks = set(tokenize(CHUNKS[i]["t"]))
         inter = len(qtoks & wtoks)
         if inter:
@@ -1846,6 +1884,15 @@ def search_dual(q, top_n=6, target_file=None, target_files=None):
         })
         if len(out) >= top_n:
             break
+    if not out and t_files:
+        target_chunks = [c for c in CHUNKS if c.get("f") in t_files]
+        if target_chunks:
+            out = [{
+                "text": c["t"],
+                "file": c["f"],
+                "ref": c.get("ref", ""),
+                "score": 100.0
+            } for c in target_chunks[:top_n]]
     return out
 
 
@@ -1937,8 +1984,13 @@ class ActiveGeneration:
                     msgs = conv.get("messages") or []
                     if msgs and msgs[-1].get("role") == "assistant":
                         msgs[-1]["content"] = self.full_text
+                        if self.meta:
+                            msgs[-1]["meta"] = self.meta
                     else:
-                        msgs.append({"role": "assistant", "content": self.full_text})
+                        m_obj = {"role": "assistant", "content": self.full_text}
+                        if self.meta:
+                            m_obj["meta"] = self.meta
+                        msgs.append(m_obj)
                     conv["messages"] = msgs
                     upsert_conv(conv)
             except Exception as e:
@@ -2050,9 +2102,30 @@ class Handler(BaseHTTPRequestHandler):
 
     def _events_rag(self, q, translate, target_file=None, target_files=None, temperature=0.3, max_tokens=600, endpoint=None, model=None, api_key=None, custom_instructions=None, memory_enabled=True):
         t_files = _normalize_target_files(target_file, target_files)
+        # إذا لم يحدد العميل ملفاً صريحاً ولكن السؤال يذكر اسم ملف موجود في الرفع
+        if not t_files and q:
+            try:
+                for fname in os.listdir(UPLOADS):
+                    cname = os.path.splitext(fname)[0]
+                    if fname in q or (len(cname) > 6 and cname in q):
+                        t_files = {fname}
+                        break
+            except Exception:
+                pass
+
         try:
             with LOCK:
                 res = search_dual(q, target_files=t_files)
+                # Fallback: إذا تم حصر البحث في ملفات محددة وسأل المستخدم سؤالاً عاماً (مثل: لخص الملف أو ما النص في الصورة):
+                if not res and t_files:
+                    target_chunks = [c for c in CHUNKS if c.get("f") in t_files]
+                    if target_chunks:
+                        res = [{
+                            "text": c["t"],
+                            "file": c["f"],
+                            "ref": c.get("ref", ""),
+                            "score": 100.0
+                        } for c in target_chunks[:8]]
             if not res:
                 yield {"type": "done"}
                 return
@@ -2060,12 +2133,17 @@ class Handler(BaseHTTPRequestHandler):
                 with LOCK:
                     res = translate_results(res)
             files = sorted({r["file"] for r in res[:8]})
-            yield {"type": "meta", "sources": len(res), "files": files}
+            sources_detail = [
+                {"file": r.get("file", ""), "ref": r.get("ref", "")}
+                for r in res[:8]
+            ]
+            yield {"type": "meta", "sources": len(res), "files": files, "sources_detail": sources_detail}
             if t_files:
                 flist_str = "، ".join(sorted(t_files))
                 system_prompt = (
                     f"أنت مساعد مراجعة يعتمد فقط وحصرياً على المحتوى من ملفات [{flist_str}] داخل <sources></sources>. "
                     "أجب بالعربية الفصحى واذكر المصطلحات العلمية بالإنجليزية بين قوسين. "
+                    "عند السؤال عن رقم الصفحة أو الشريحة أو الموضع، استند حصرياً إلى رقم الصفحة أو الشريحة المذكور بدقة في ترويسة كل مقطع [اسم الملف — صفحة X / شريحة X]، وتجنب الخلط بين أرقام الصفحات وبين أي أرقام قد ترد في اسم الملف ذاته (مثل -pages-5.pdf). "
                     "إذا لم تجد الإجابة في محتوى هذه الملفات المحددة تحديداً فقل بصراحة أن المعلومة غير موجودة في هذه الملفات."
                 )
             else:
@@ -2117,6 +2195,23 @@ class Handler(BaseHTTPRequestHandler):
                 elif local_path.endswith(".ttf"): ctype = "font/ttf"
                 with open(local_path, "rb") as f:
                     self._send(200, ctype, f.read())
+            else:
+                self._send(404, "text/plain", b"File not found")
+        elif u.path.startswith("/uploads/"):
+            fname = unquote(u.path[len("/uploads/"):].strip())
+            safe_fname = os.path.basename(fname)
+            fpath = os.path.join(UPLOADS, safe_fname)
+            if os.path.isfile(fpath):
+                ext = os.path.splitext(safe_fname)[1].lower()
+                mime = "application/octet-stream"
+                if ext == ".png": mime = "image/png"
+                elif ext in (".jpg", ".jpeg"): mime = "image/jpeg"
+                elif ext == ".webp": mime = "image/webp"
+                elif ext == ".bmp": mime = "image/bmp"
+                elif ext == ".gif": mime = "image/gif"
+                elif ext == ".pdf": mime = "application/pdf"
+                with open(fpath, "rb") as f:
+                    self._send(200, mime, f.read())
             else:
                 self._send(404, "text/plain", b"File not found")
         elif u.path == "/docs":

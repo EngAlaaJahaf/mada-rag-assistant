@@ -232,6 +232,16 @@ Write-Host "`nDeploying files to USB drive..." -ForegroundColor Yellow
 # A) Standalone Server Executable (embedded HTML, CSS, JS)
 Copy-WithProgress $serverExe (Join-Path $DestRoot 'mada-rag-server.exe') "Server Executable (Self-Contained)"
 
+# A2) Plugins Directory (OCR & extensions)
+$pluginsDir = Join-Path $AppSource 'plugins'
+if (Test-Path -LiteralPath $pluginsDir) {
+    Get-ChildItem -LiteralPath $pluginsDir -Recurse -File | ForEach-Object {
+        $rel = $_.FullName.Substring($pluginsDir.Length).TrimStart('\', '/')
+        $target = Join-Path $DestRoot "plugins\$rel"
+        Copy-WithProgress $_.FullName $target "Plugin: $rel"
+    }
+}
+
 # B) Llama runtime binaries and CUDA / AVX libraries
 $runtimeDlls = @(
     'llama-server.exe',

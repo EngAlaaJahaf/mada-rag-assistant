@@ -50,6 +50,9 @@ if __name__ == '__main__':
     elif '--background-agent' in sys.argv:
         import background_agent
         background_agent.main()
+    elif '--ocr-plugin' in sys.argv:
+        from plugins.ocr import ocr_bridge
+        ocr_bridge.main()
     else:
         import server
         server.main()

@@ -396,10 +396,12 @@ function bindEvents() {
   $('fm-btn-upload').addEventListener('click', function () { fileInput.click(); });
   $('fm-btn-select-all').addEventListener('click', function () {
     selectedScopedFiles = allServerFiles.map(function (f) { return f.name; });
+    persistScopedFiles();
     renderFilesModalList(fmFilterInput.value);
   });
   $('fm-btn-clear-all').addEventListener('click', function () {
     selectedScopedFiles = [];
+    persistScopedFiles();
     renderFilesModalList(fmFilterInput.value);
   });
   $('fm-btn-reset-filter').addEventListener('click', function () {
@@ -429,6 +431,7 @@ function bindEvents() {
       var idx = selectedScopedFiles.indexOf(fname);
       if (idx === -1) selectedScopedFiles.push(fname);
       else selectedScopedFiles.splice(idx, 1);
+      persistScopedFiles();
       renderFilesModalList(fmFilterInput.value);
     }
   });
@@ -465,6 +468,36 @@ function bindEvents() {
     e.preventDefault();
     if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
       handleFilesSelect(e.dataTransfer.files);
+    }
+  });
+
+  // دعم اللصق المباشر عبر Ctrl + V للصور واللقطات والمستندات في الشات
+  window.addEventListener('paste', function (e) {
+    if (!e.clipboardData) return;
+    var files = [];
+    if (e.clipboardData.files && e.clipboardData.files.length) {
+      files = Array.from(e.clipboardData.files);
+    } else if (e.clipboardData.items) {
+      for (var i = 0; i < e.clipboardData.items.length; i++) {
+        var it = e.clipboardData.items[i];
+        if (it.kind === 'file') {
+          var f = it.getAsFile();
+          if (f) files.push(f);
+        }
+      }
+    }
+    if (files.length) {
+      var normalizedFiles = files.map(function (f, idx) {
+        if (!f.name || f.name === 'image.png' || f.name === 'blob') {
+          var d = new Date();
+          var ts = d.getFullYear() + '' + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0') + '_' + String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0') + String(d.getSeconds()).padStart(2, '0');
+          var ext = f.type ? ('.' + f.type.split('/')[1].replace('jpeg', 'jpg')) : '.png';
+          return new File([f], 'لقطة_شاشة_' + ts + (idx > 0 ? '_' + idx : '') + ext, { type: f.type || 'image/png' });
+        }
+        return f;
+      });
+      e.preventDefault();
+      handleFilesSelect(normalizedFiles);
     }
   });
 
@@ -677,13 +710,54 @@ function bindEvents() {
     var codeEl = pre.querySelector('pre code');
     var txt = codeEl ? codeEl.textContent : '';
     copyText(txt);
-    btn.classList.add('copied');
-    var oldHtml = btn.innerHTML;
-    btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    btn.classList.add('copied', 'active-success');
+    var labelSpan = btn.querySelector('span');
+    var oldLabel = labelSpan ? labelSpan.textContent : 'Copy';
+    var svg = btn.querySelector('svg');
+    var oldSvg = svg ? svg.outerHTML : '';
+    if (labelSpan) labelSpan.textContent = 'Copied!';
+    if (svg) svg.outerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
     setTimeout(function () {
-      btn.classList.remove('copied');
-      btn.innerHTML = oldHtml;
-    }, 1400);
+      btn.classList.remove('copied', 'active-success');
+      if (labelSpan) labelSpan.textContent = oldLabel;
+      var curSvg = btn.querySelector('svg');
+      if (curSvg && oldSvg) curSvg.outerHTML = oldSvg;
+    }, 1500);
+  });
+
+  /* code download button delegation */
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.cb-download-btn');
+    if (!btn) return;
+    var pre = btn.closest('.cb');
+    if (!pre) return;
+    var codeEl = pre.querySelector('pre code');
+    var txt = codeEl ? codeEl.textContent : '';
+    var lang = pre.getAttribute('data-lang') || '';
+    if (!lang) {
+      var langEl = pre.querySelector('.cb-lang');
+      if (langEl) lang = langEl.textContent.trim().toLowerCase();
+    }
+    if (!lang && codeEl) {
+      var m = (codeEl.className || '').match(/(?:language-|lang-)([a-zA-Z0-9_\-]+)/);
+      if (m) lang = m[1];
+    }
+    if (typeof downloadCodeSnippet === 'function') {
+      downloadCodeSnippet(txt, lang);
+    }
+    btn.classList.add('active-success');
+    var labelSpan = btn.querySelector('span');
+    var oldLabel = labelSpan ? labelSpan.textContent : 'Download';
+    var svg = btn.querySelector('svg');
+    var oldSvg = svg ? svg.outerHTML : '';
+    if (labelSpan) labelSpan.textContent = 'Downloaded!';
+    if (svg) svg.outerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    setTimeout(function () {
+      btn.classList.remove('active-success');
+      if (labelSpan) labelSpan.textContent = oldLabel;
+      var curSvg = btn.querySelector('svg');
+      if (curSvg && oldSvg) curSvg.outerHTML = oldSvg;
+    }, 1500);
   });
 
   /* message action buttons delegation (Image 3) */
@@ -798,8 +872,13 @@ function bindEvents() {
         // Re-render
         msgsEl.innerHTML = '';
         for (var ri = 0; ri < chat.messages.length; ri++) {
-          if (chat.messages[ri].role === 'user') renderUserMsg(chat.messages[ri].content, ri);
-          else renderAsstMsg(chat.messages[ri].content, ri);
+          if (chat.messages[ri].role === 'user') {
+            renderUserMsg(chat.messages[ri].content, ri, chat.messages[ri].files);
+          } else {
+            var prevU = (ri > 0 && chat.messages[ri - 1].role === 'user') ? chat.messages[ri - 1] : null;
+            var meta = chat.messages[ri].meta || (window.extractMetaFromContent ? window.extractMetaFromContent(chat.messages[ri].content, prevU) : null);
+            renderAsstMsg(chat.messages[ri].content, ri, meta);
+          }
         }
         // Send as new message
         send(newText, chat.id);
@@ -954,7 +1033,11 @@ async function init() {
     syncUrlChatId(currentChatId);
     updateModePill();
     if (targetChat.messages && targetChat.messages.length) {
-      renderChatMessages(targetChat);
+      try {
+        renderChatMessages(targetChat);
+      } catch (err) {
+        console.error('Failed to render chat messages on init:', err);
+      }
     } else {
       renderEmpty(true);
     }
