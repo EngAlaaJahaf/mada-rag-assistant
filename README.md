@@ -58,8 +58,18 @@
    ```
    *(يمكنك تسميته `model.gguf` أو الاحتفاظ باسمه الأصلي مثل `qwen2.5-1.5b-instruct.gguf` وسيتعرف عليه التطبيق تلقائياً).*
 
-> 💡 **من أين تحصل على نموذج؟**  
-> يمكنك تنزيل أي نموذج متوافق بصيغة GGUF من موقع HuggingFace (مثل عائلة نماذج `Qwen2.5` أو `Llama-3`).
+### 🤖 نماذج خفيفة مقترحة للتحميل المباشر (Recommended Models)
+
+اختر أحد النماذج التالية، ونزل ملف الـ `.gguf` وضعه مباشرة داخل مجلد `portable\models\`:
+
+| النموذج | الحجم | استهلاك الرام (RAM) | جودة العربية والسرعة | رابط التحميل المباشر (Direct Download) |
+| :--- | :---: | :---: | :---: | :--- |
+| **Qwen 2.5 (1.5B) Instruct**<br>*(الأفضل والأسرع للعربية - موصى به)* | **~1.0 GB** | ~1.5 GB | ⭐⭐⭐⭐⭐ فائق السرعة وممتاز | [⬇️ تحميل qwen2.5-1.5b-instruct-q4_k_m.gguf](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf) |
+| **Qwen 2.5 (3B) Instruct**<br>*(أعلى ذكاء وقوة في التحليل)* | **~2.0 GB** | ~2.8 GB | ⭐⭐⭐⭐⭐ ذكاء ممتاز ولغة متقنة | [⬇️ تحميل qwen2.5-3b-instruct-q4_k_m.gguf](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf) |
+| **Llama 3.2 (1B) Instruct**<br>*(فائق الخفة للترجمة السريعة)* | **~0.8 GB** | ~1.2 GB | ⭐⭐⭐⭐ خفيف جداً للأجهزة الضعيفة | [⬇️ تحميل Llama-3.2-1B-Instruct-Q4_K_M.gguf](https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf) |
+| **Llama 3.2 (3B) Instruct**<br>*(توليد متقدم من Meta)* | **~2.0 GB** | ~2.8 GB | ⭐⭐⭐⭐ جيد جداً | [⬇️ تحميل Llama-3.2-3B-Instruct-Q4_K_M.gguf](https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf) |
+
+> 💡 **نصيحة:** نوصي بشدة بالبدء مع نموذج **Qwen 2.5 1.5B** لأنه يقدم أفضل استجابة لحظية في المنبثقة السريعة مع دعم ممتاز للعربية واستهلاك قليل جداً لموارد المعالج والذاكرة.
 
 ---
 
