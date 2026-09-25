@@ -1,6 +1,6 @@
-﻿# =====================================================================
-# Direct Fast Sync - النقل السريع المباشر لتطبيق مَدى إلى فلاشة USB
-# =====================================================================
+# ======================================================================
+# Mada-RAG Portable - Direct Fast Sync & USB Deployment Tool
+# ======================================================================
 param(
     [string]$Flash = '',
     [string]$DestRoot = '',
@@ -9,40 +9,38 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $AppSource = $PSScriptRoot
 $Dist = Join-Path $AppSource 'dist'
 
-Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "     مساعد مَدى - أداة النقل المباشر السريع إلى الفلاشة    " -ForegroundColor Cyan
-Write-Host "==========================================================" -ForegroundColor Cyan
+Write-Host "======================================================================" -ForegroundColor Cyan
+Write-Host "          Mada-RAG Assistant - USB Fast Deployment Tool               " -ForegroundColor Cyan
+Write-Host "======================================================================" -ForegroundColor Cyan
 
-# 1. التحقق من جاهزية البناء المدمج mada-rag-server.exe
+# 1. Verify build executable
 $serverExe = Join-Path $Dist 'mada-rag-server.exe'
 if (-not (Test-Path -LiteralPath $serverExe)) {
-    throw "الملف التنفيذي غير موجود في مجلد البناء: $serverExe. يرجى بناؤه أولاً."
+    throw "Executable not found at: $serverExe. Please build mada-rag-server.exe first."
 }
 
-# 2. قراءة إعدادات المحرك والنموذج
+# 2. Read model configuration
 $cfgFile = Join-Path $AppSource 'model_config.json'
 if (-not (Test-Path -LiteralPath $cfgFile)) {
-    throw "ملف الإعدادات غير موجود: $cfgFile"
+    throw "Configuration file not found: $cfgFile"
 }
 $cfg = Get-Content -LiteralPath $cfgFile -Raw -Encoding UTF8 | ConvertFrom-Json
 if (-not $LlamaBinDir) { $LlamaBinDir = Split-Path -Parent $cfg.exe }
 if (-not $ModelFile) { $ModelFile = $cfg.model }
 
 if (-not (Test-Path -LiteralPath $LlamaBinDir)) {
-    throw "مجلد محرك llama.cpp غير موجود: $LlamaBinDir"
+    throw "Llama runtime directory not found: $LlamaBinDir"
 }
 if (-not (Test-Path -LiteralPath $ModelFile)) {
-    throw "ملف النموذج .gguf غير موجود: $ModelFile"
+    throw "Model file not found: $ModelFile"
 }
 
-# 3. دالة فحص وتحديد الفلاشات المتصلة
-function Get-AvailableUsbDrives {
+# 3. Detect USB and Removable drives
+function Get-UsbDrives {
     $list = @()
-    # أ) الأقراص الموصولة عبر ناقل USB
     try {
         $disks = Get-Disk -ErrorAction SilentlyContinue | Where-Object {
             $_.BusType -eq 'USB' -and -not $_.IsOffline -and -not $_.IsReadOnly -and -not $_.IsBoot -and -not $_.IsSystem
@@ -64,7 +62,6 @@ function Get-AvailableUsbDrives {
         }
     } catch {}
 
-    # ب) الأقراص المصنفة كـ Removable
     try {
         $removables = Get-Volume -ErrorAction SilentlyContinue | Where-Object {
             $_.DriveType -eq 'Removable' -and $_.DriveLetter -and $_.SizeRemaining -gt 0
@@ -85,58 +82,65 @@ function Get-AvailableUsbDrives {
     return @($list | Sort-Object Drive -Unique)
 }
 
-# 4. طلب تحديد الفلاشة إن لم تُحدد
+# 4. Prompt or auto-detect USB destination
 while ([string]::IsNullOrWhiteSpace($Flash)) {
-    $usbTargets = Get-AvailableUsbDrives
+    Write-Host "`nScanning for connected USB flash drives..." -ForegroundColor Gray
+    $usbTargets = Get-UsbDrives
 
     if ($usbTargets.Count -eq 0) {
+        Write-Host "Waiting for USB flash drive to be plugged in (checking every 2s)..." -ForegroundColor Yellow -NoNewline
+        $retries = 0
+        while ($usbTargets.Count -eq 0 -and $retries -lt 30) {
+            Start-Sleep -Seconds 2
+            $retries++
+            $usbTargets = Get-UsbDrives
+            if ($usbTargets.Count -gt 0) { break }
+            Write-Host "." -NoNewline -ForegroundColor Gray
+        }
         Write-Host ""
-        Write-Host "⚠️ لم يتم اكتشاف فلاشة USB متصلة حالياً." -ForegroundColor Yellow
-        Write-Host "يرجى توصيل الفلاشة الآن بالكمبيوتر ثم الضغط على [Enter] للمتابعة..." -ForegroundColor White -NoNewline
-        $null = Read-Host
-        $usbTargets = Get-AvailableUsbDrives
+
         if ($usbTargets.Count -eq 0) {
-            # إمكانية إدخال حرف القرص يدوياً لمن لديه فلاشة ذات تصنيف خاص
-            Write-Host "يمكنك كتابة حرف الفلاشة يدوياً (مثال: F أو H)، أو اضغط Enter للمحاولة ثانية: " -ForegroundColor Gray -NoNewline
+            Write-Host "No USB drive detected automatically. Type drive letter (e.g. H or F) or press Enter to retry: " -ForegroundColor Yellow -NoNewline
             $manual = Read-Host
             if ($manual -match '^[A-Za-z]') {
                 $Flash = ($manual.Trim().Substring(0, 1).ToUpper() + ':')
                 break
             }
+            continue
         }
     }
 
     if ($usbTargets.Count -eq 1) {
         $Flash = $usbTargets[0].Drive
-        Write-Host "تم التعرف تلقائياً على الفلاشة: $Flash ($($usbTargets[0].Label) - متبقي $($usbTargets[0].FreeGB) GB)" -ForegroundColor Green
+        $info = $usbTargets[0]
+        Write-Host ("[FOUND] USB Destination: {0} ({1} | Free: {2} GB)" -f $info.Drive, $info.Device, $info.FreeGB) -ForegroundColor Green
         break
     } elseif ($usbTargets.Count -gt 1) {
-        Write-Host "`nتم العثور على أكثر من وحدة تخزين USB، يرجى اختيار الهدف:" -ForegroundColor Yellow
+        Write-Host "`nMultiple USB drives detected. Please select destination:" -ForegroundColor Yellow
         for ($i = 0; $i -lt $usbTargets.Count; $i++) {
             $t = $usbTargets[$i]
-            Write-Host ("  [{0}] {1}  ({2})  المساحة الحرة: {3} GB" -f ($i + 1), $t.Drive, $t.Label, $t.FreeGB) -ForegroundColor White
+            Write-Host ("  [{0}] {1}  ({2})  Free space: {3} GB" -f ($i + 1), $t.Drive, $t.Label, $t.FreeGB) -ForegroundColor White
         }
-        $choice = Read-Host "أدخل رقم الفلاشة المطلوبة (1-$($usbTargets.Count))"
+        $choice = Read-Host "Enter destination number (1-$($usbTargets.Count))"
         $num = 0
         if ([int]::TryParse($choice, [ref]$num) -and $num -ge 1 -and $num -le $usbTargets.Count) {
             $Flash = $usbTargets[$num - 1].Drive
             break
         } else {
-            Write-Host "اختيار غير صالح، يرجى إعادة المحاولة." -ForegroundColor Red
+            Write-Host "Invalid selection. Retrying..." -ForegroundColor Red
         }
     }
 }
 
 $Flash = $Flash.Trim().TrimEnd('\')
-if ($Flash -notmatch '^[A-Za-z]:$') { throw "حرف الفلاشة يجب أن يكون حرف قرص صالح مثل F: أو H:" }
-if (-not (Test-Path -LiteralPath ($Flash + '\'))) { throw "تعذر الوصول إلى محرك الأقراص: $Flash" }
+if ($Flash -notmatch '^[A-Za-z]:$') { throw "Target must be a valid drive letter like H: or F:" }
+if (-not (Test-Path -LiteralPath ($Flash + '\'))) { throw "Drive unavailable: $Flash" }
 
 if (-not $DestRoot) { $DestRoot = Join-Path ($Flash + '\') 'mada-rag' }
-Write-Host "`n📁 مسار التثبيت على الفلاشة: $DestRoot" -ForegroundColor Cyan
+Write-Host "`nDestination Folder: $DestRoot" -ForegroundColor Cyan
 
-# 5. دالة النقل السريع المقارن (Differential Fast Copy)
-# تعتمد على مقارنة الحجم وتاريخ التعديل بدلاً من حساب SHA256 البطيء للـ 3 جيجابايت
-function Copy-FastFile($SourcePath, $TargetPath, $DisplayName) {
+# 5. High-speed copy function with real-time progress bar
+function Copy-WithProgress($SourcePath, $TargetPath, $DisplayName) {
     $parent = Split-Path -Parent $TargetPath
     if (-not (Test-Path -LiteralPath $parent)) {
         New-Item -ItemType Directory -Force -Path $parent | Out-Null
@@ -145,124 +149,194 @@ function Copy-FastFile($SourcePath, $TargetPath, $DisplayName) {
     $src = Get-Item -LiteralPath $SourcePath
     if (Test-Path -LiteralPath $TargetPath) {
         $tgt = Get-Item -LiteralPath $TargetPath
-        # إذا كان الحجم متطابقاً للملفات الكبيرة (كالموديل)، نتخطى النسخ فوراً
+        # Skip if identical size and target is not older than source
         if ($src.Length -eq $tgt.Length) {
             if ($src.Length -gt 50MB -or $src.LastWriteTime -le $tgt.LastWriteTime) {
-                Write-Host "  ⏩ [موجود مسبقاً] $DisplayName" -ForegroundColor DarkGray
+                $szStr = if ($src.Length -gt 1GB) { "$([math]::Round($src.Length / 1GB, 2)) GB" } else { "$([math]::Round($src.Length / 1MB, 1)) MB" }
+                Write-Host ("  [UP-TO-DATE] {0,-35} ({1})" -f $DisplayName, $szStr) -ForegroundColor DarkGray
                 return
             }
         }
     }
 
-    $sizeStr = if ($src.Length -gt 1GB) { "$([math]::Round($src.Length / 1GB, 2)) GB" } else { "$([math]::Round($src.Length / 1MB, 1)) MB" }
-    Write-Host "  ⚡ [جاري النقل] $DisplayName ($sizeStr)..." -ForegroundColor White
-    Copy-Item -LiteralPath $SourcePath -Destination $TargetPath -Force
-    Write-Host "     تم النقل بنجاح." -ForegroundColor Green
+    $totalBytes = $src.Length
+    $totalMB = [math]::Round($totalBytes / 1MB, 1)
+
+    # For small files (< 15MB), copy directly
+    if ($totalBytes -lt 15MB) {
+        Write-Host ("  [COPYING]    {0,-35} ({1} MB)... " -f $DisplayName, $totalMB) -NoNewline -ForegroundColor White
+        Copy-Item -LiteralPath $SourcePath -Destination $TargetPath -Force
+        Write-Host "[OK]" -ForegroundColor Green
+        return
+    }
+
+    # For large files (> 15MB), use optimized 8MB buffer stream with live progress bar
+    $totalGB = [math]::Round($totalBytes / 1GB, 2)
+    $isGB = $totalBytes -gt 1GB
+    $sizeLabel = if ($isGB) { "$totalGB GB" } else { "$totalMB MB" }
+
+    Write-Host ("  [COPYING]    {0,-35} ({1})" -f $DisplayName, $sizeLabel) -ForegroundColor Cyan
+
+    $bufSize = 8 * 1024 * 1024 # 8 MB buffer
+    $buf = New-Object byte[] $bufSize
+    $inStream = [IO.File]::OpenRead($SourcePath)
+    $outStream = [IO.File]::Create($TargetPath)
+    $copied = 0
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    $lastUpdate = [DateTime]::MinValue
+
+    try {
+        while (($bytesRead = $inStream.Read($buf, 0, $bufSize)) -gt 0) {
+            $outStream.Write($buf, 0, $bytesRead)
+            $copied += $bytesRead
+
+            # Update progress max 5 times per second to avoid console flicker
+            $now = [DateTime]::UtcNow
+            if (($now - $lastUpdate).TotalMilliseconds -ge 200 -or $copied -eq $totalBytes) {
+                $lastUpdate = $now
+                $pct = [math]::Min(100, [math]::Round(($copied / $totalBytes) * 100))
+                $elapsedSec = [math]::Max($sw.Elapsed.TotalSeconds, 0.05)
+                $speedMB = [math]::Round(($copied / 1MB) / $elapsedSec, 1)
+                
+                # Visual ASCII progress bar
+                $barLength = 22
+                $filled = [int](($pct / 100) * $barLength)
+                $empty = [math]::Max(0, $barLength - $filled)
+                $bar = ("=" * $filled) + (">" * [int]($filled -lt $barLength)) + (" " * [math]::Max(0, $empty - 1))
+                if ($filled -eq $barLength) { $bar = "=" * $barLength }
+
+                if ($isGB) {
+                    $curGB = [math]::Round($copied / 1GB, 2)
+                    $remainingSec = if ($speedMB -gt 0) { [math]::Round(($totalBytes - $copied) / (1MB * $speedMB)) } else { 0 }
+                    $etaStr = if ($remainingSec -gt 0) { "ETA: ${remainingSec}s" } else { "Finalizing..." }
+                    $line = ("`r    [{0}] {1,3}% | {2,4} / {3} GB | {4,5} MB/s | {5,-14}" -f $bar, $pct, $curGB, $totalGB, $speedMB, $etaStr)
+                } else {
+                    $curMB = [math]::Round($copied / 1MB, 1)
+                    $line = ("`r    [{0}] {1,3}% | {2,5} / {3} MB | {4,5} MB/s" -f $bar, $pct, $curMB, $totalMB, $speedMB)
+                }
+                Write-Host $line -NoNewline -ForegroundColor White
+            }
+        }
+        $totalElapsed = [math]::Max($sw.Elapsed.TotalSeconds, 0.1)
+        $avgSpeed = [math]::Round(($totalBytes / 1MB) / $totalElapsed, 1)
+        Write-Host ("`r    [======================] 100% | {0} | Avg: {1} MB/s [DONE]     " -f $sizeLabel, $avgSpeed) -ForegroundColor Green
+    } finally {
+        $inStream.Close()
+        $outStream.Close()
+    }
 }
 
-# 6. تجهيز المجلد الهدف وتنظيف الملفات البرمجية القديمة غير الضرورية
-if (-not (Test-Path -LiteralPath $DestRoot)) {
-    New-Item -ItemType Directory -Force -Path $DestRoot | Out-Null
-}
+# 6. Start copying files
+Write-Host "`nDeploying files to USB drive..." -ForegroundColor Yellow
 
-Write-Host "`n🚀 بدء النقل المباشر للملفات..." -ForegroundColor Yellow
+# A) Standalone Server Executable (embedded HTML, CSS, JS)
+Copy-WithProgress $serverExe (Join-Path $DestRoot 'mada-rag-server.exe') "Server Executable (Self-Contained)"
 
-# أ) الملف التنفيذي المدمج (يحتوي بداخله كافة واجهات HTML و JS و CSS)
-Copy-FastFile $serverExe (Join-Path $DestRoot 'mada-rag-server.exe') "الملف التنفيذي المدمج (mada-rag-server.exe)"
-
-# ب) محرك llama.cpp والمكتبات التابعة له (CUDA و AVX)
-$runtimeDlls = @('llama-server.exe','llama-server-impl.dll','llama-common.dll',
-    'llama.dll','mtmd.dll','ggml.dll','ggml-base.dll','ggml-cpu.dll',
-    'ggml-cuda.dll','cublas64_12.dll','cublasLt64_12.dll','cudart64_12.dll')
+# B) Llama runtime binaries and CUDA / AVX libraries
+$runtimeDlls = @(
+    'llama-server.exe',
+    'llama-server-impl.dll',
+    'llama-common.dll',
+    'llama.dll',
+    'mtmd.dll',
+    'ggml.dll',
+    'ggml-base.dll',
+    'ggml-cpu.dll',
+    'ggml-cuda.dll',
+    'cublas64_12.dll',
+    'cublasLt64_12.dll',
+    'cudart64_12.dll'
+)
 
 foreach ($dll in $runtimeDlls) {
     $srcDll = Join-Path $LlamaBinDir $dll
     if (Test-Path -LiteralPath $srcDll) {
-        Copy-FastFile $srcDll (Join-Path $DestRoot "portable\llama\$dll") "مكتبة المحرك: $dll"
+        Copy-WithProgress $srcDll (Join-Path $DestRoot "portable\llama\$dll") "Runtime: $dll"
     }
 }
 
-# ج) ملف نموذج الذكاء الاصطناعي الفعلي .gguf
-Copy-FastFile $ModelFile (Join-Path $DestRoot 'portable\models\model.gguf') "نموذج الذكاء الاصطناعي (model.gguf)"
+# C) Active AI Model (.gguf)
+Copy-WithProgress $ModelFile (Join-Path $DestRoot 'portable\models\model.gguf') "AI Model: $(Split-Path -Leaf $ModelFile)"
 
-# د) ملف الإعدادات بمسارات نسبية وتفعيل الضبط التلقائي
+# D) Portable relative configuration
 $portableConfig = @{
     spec = "auto"
     exe = "portable\llama\llama-server.exe"
     model = "portable\models\model.gguf"
 } | ConvertTo-Json
 
-$portableConfig | Set-Content -LiteralPath (Join-Path $DestRoot 'model_config.json') -Encoding UTF8
-Write-Host "  ✅ [تجهيز] ملف إعدادات النموذج (model_config.json)" -ForegroundColor Green
+$portableConfig | Set-Content -LiteralPath (Join-Path $DestRoot 'model_config.json') -Encoding ASCII
+Write-Host "  [CONFIG]     model_config.json created successfully." -ForegroundColor Green
 
-# هـ) سكربت التشغيل run-mada-rag.bat
+# E) Windows launcher script (run-mada-rag.bat)
 $launcherContent = @'
 @echo off
-chcp 65001 >nul
 setlocal
 title Mada-RAG Portable Assistant
 cd /d "%~dp0"
 if not exist "runtime-temp" mkdir "runtime-temp"
 set "TEMP=%~dp0runtime-temp"
 set "TMP=%TEMP%"
-echo ============================================================
-echo      مساعد مَدى الذكي - النسخة المحمولة (Portable USB)
-echo ============================================================
-echo.
-echo جاري بدء تشغيل السيرفر والمحرك وفتح واجهة المحادثة...
+echo ======================================================================
+echo             Starting Mada-RAG Portable Assistant...
+echo ======================================================================
+echo Server is launching and your web browser will open automatically:
+echo http://127.0.0.1:8787/chat
 echo.
 "%~dp0mada-rag-server.exe" %*
 if errorlevel 1 (
   echo.
-  echo ❌ حدث خطأ أثناء تشغيل التطبيق. يرجى مراجعة الرسالة أعلاه.
+  echo [ERROR] Application encountered an issue. See message above.
   pause
 )
 '@
-$launcherContent | Set-Content -LiteralPath (Join-Path $DestRoot 'run-mada-rag.bat') -Encoding UTF8
-Write-Host "  ✅ [تجهيز] سكربت التشغيل التلقائي (run-mada-rag.bat)" -ForegroundColor Green
+$launcherContent | Set-Content -LiteralPath (Join-Path $DestRoot 'run-mada-rag.bat') -Encoding ASCII
+Write-Host "  [LAUNCHER]   run-mada-rag.bat created successfully." -ForegroundColor Green
 
-# و) ملف الإرشادات والتعليمات PORTABLE-README.txt
+# F) README documentation file
 $readmeContent = @'
-===============================================================================
-               دليل تشغيل مساعد مَدى الذكي من الفلاشة (Mada-RAG)
-===============================================================================
+======================================================================
+              Mada-RAG Assistant (Offline Portable USB)
+======================================================================
 
-1. طريقة التشغيل:
-   - انقر نقراً مزدوجاً على ملف: run-mada-rag.bat
-   - سيقوم السكربت ببدء السيرفر وفتح واجهة المحادثة تلقائياً في متصفحك:
+1. HOW TO RUN:
+   - Double-click: run-mada-rag.bat
+   - The server starts and opens your browser at:
      http://127.0.0.1:8787/chat
 
-2. ⚠️ تنبيه Windows SmartScreen (عند أول تشغيل على جهاز جديد):
-   - نظراً لأن التطبيق مفتوح المصدر وحديث، قد تظهر لك نافذة زرقاء من ويندوز تقول:
-     "Windows protected your PC"
-   - الحل: اضغط على More info (مزيد من المعلومات) ثم Run anyway (تشغيل على أي حال).
+2. WINDOWS SMARTSCREEN (FIRST RUN NOTICE):
+   - Because this is an open-source binary without an expensive Microsoft
+     signing certificate, Windows may show: "Windows protected your PC".
+   - Solution: Click "More info" then click "Run anyway".
 
-3. ⏳ الانتظار لأول سؤال (Warm-up):
-   - عند إرسال أول رسالة أو استخدام اختصار المنبثقة، يحتاج المحرك من 2 إلى 5 ثوانٍ
-     لتحميل أوزان النموذج إلى الذاكرة، وبعدها تصبح جميع الردود فورية وسريعة جداً.
+3. FIRST-RUN MODEL WARM-UP:
+   - When sending your first message or triggering Quick Popup, the engine
+     loads the model weights into RAM/VRAM (takes 2-5 seconds).
+   - After this initial load, all subsequent responses are instantaneous!
 
-4. ⌨️ اختصارات المنبثقة السريعة (Quick Popup):
-   - Ctrl + Alt + Space: حدد أي نص في أي تطبيق واضغط الاختصار للحصول على رد فوري.
-   - Ctrl + Alt + R: إعادة فتح نافذة المنبثقة بآخر رد تم توليده.
+4. QUICK POPUP SHORTCUTS:
+   - Ctrl + Alt + Space : Select text in ANY app to get an instant AI response.
+   - Ctrl + Alt + R     : Reopen the popup with the last generated response.
 
-5. المميزات:
-   - يعمل محلياً 100% بدون إنترنت.
-   - لا يتطلب تثبيت بايثون أو أي برامج وسيطة.
-   - يتعرف تلقائياً على كروت شاشة NVIDIA (CUDA) أو المعالجات (AVX).
-===============================================================================
+5. FEATURES:
+   - 100% Offline & Private (no internet required).
+   - No installation and no Python required.
+   - Automatically utilizes NVIDIA GPUs (CUDA) or Intel/AMD CPUs (AVX).
+======================================================================
 '@
-$readmeContent | Set-Content -LiteralPath (Join-Path $DestRoot 'PORTABLE-README.txt') -Encoding UTF8
-Write-Host "  ✅ [تجهيز] ملف الإرشادات (PORTABLE-README.txt)" -ForegroundColor Green
+$readmeContent | Set-Content -LiteralPath (Join-Path $DestRoot 'PORTABLE-README.txt') -Encoding ASCII
+Write-Host "  [DOCS]       PORTABLE-README.txt created successfully." -ForegroundColor Green
 
-# 7. الملخص النهائي
+# 7. Summary
 $totalSize = (Get-ChildItem -LiteralPath $DestRoot -Recurse -File | Measure-Object Length -Sum).Sum
 $totalSizeGB = [math]::Round($totalSize / 1GB, 2)
 $fileCount = (Get-ChildItem -LiteralPath $DestRoot -Recurse -File | Measure-Object).Count
 
-Write-Host "`n==========================================================" -ForegroundColor Green
-Write-Host "  🎉 اكتمل النقل السريع للفلاشة بنجاح 100%!" -ForegroundColor Green
-Write-Host "  📁 المسار: $DestRoot" -ForegroundColor Cyan
-Write-Host "  📊 عدد الملفات: $fileCount ملفاً فقط" -ForegroundColor White
-Write-Host "  💾 الحجم الإجمالي: $totalSizeGB GB" -ForegroundColor White
-Write-Host "  🚀 للتشغيل: افتح الفلاشة وشغل [run-mada-rag.bat]" -ForegroundColor Yellow
-Write-Host "==========================================================" -ForegroundColor Green
+Write-Host "`n======================================================================" -ForegroundColor Green
+Write-Host "  SUCCESS: Mada-RAG Portable is 100% ready on your USB drive!         " -ForegroundColor Green
+Write-Host "======================================================================" -ForegroundColor Green
+Write-Host ("  Target Folder: {0}" -f $DestRoot) -ForegroundColor Cyan
+Write-Host ("  Total Files:   {0} files" -f $fileCount) -ForegroundColor White
+Write-Host ("  Total Size:    {0} GB" -f $totalSizeGB) -ForegroundColor White
+Write-Host ("  To Run:        Open your USB drive and launch [run-mada-rag.bat]") -ForegroundColor Yellow
+Write-Host "======================================================================" -ForegroundColor Green

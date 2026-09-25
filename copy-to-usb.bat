@@ -14,9 +14,11 @@ set "result=%errorlevel%"
 
 echo.
 if "%result%"=="0" (
-    echo [SUCCESS] Operation completed.
+    echo =====================================================================
+    echo [SUCCESS] USB deployment completed successfully!
+    echo =====================================================================
 ) else (
-    echo [ERROR] Review the messages above.
+    echo [ERROR] Deployment failed. Review the messages above.
 )
 
 pause
