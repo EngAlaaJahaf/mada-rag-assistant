@@ -1,25 +1,22 @@
 @echo off
-chcp 65001 >nul
 setlocal
-title نسخ تطبيق مَدى إلى الفلاشة (Direct Fast Sync)
+title Mada-RAG USB Fast Sync
 cd /d "%~dp0"
 
 if not exist "%~dp0make-portable-usb.ps1" (
-    echo [خطأ] لم يتم العثور على ملف make-portable-usb.ps1 بجوار هذا الملف.
+    echo [ERROR] make-portable-usb.ps1 was not found.
     pause
     exit /b 1
 )
 
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0make-portable-usb.ps1"
+"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0make-portable-usb.ps1"
 set "result=%errorlevel%"
 
 echo.
 if "%result%"=="0" (
-    echo ==========================================================
-    echo   اكتمل التجهيز! يمكنك الآن فصل الفلاشة وتشغيلها بأمان.
-    echo ==========================================================
+    echo [SUCCESS] Operation completed.
 ) else (
-    echo ❌ فشلت عملية النسخ. يرجى مراجعة رسالة الخطأ أعلاه.
+    echo [ERROR] Review the messages above.
 )
 
 pause
