@@ -1,4 +1,4 @@
-﻿# ======================================================================
+# ======================================================================
 # Mada-RAG Portable - Direct Fast Sync & USB Deployment Tool
 # ======================================================================
 param(
@@ -9,6 +9,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$totalStopwatch = [Diagnostics.Stopwatch]::StartNew()
 $AppSource = $PSScriptRoot
 $Dist = Join-Path $AppSource 'dist'
 
@@ -330,6 +331,12 @@ Write-Host "  [DOCS]       PORTABLE-README.txt created successfully." -Foregroun
 $totalSize = (Get-ChildItem -LiteralPath $DestRoot -Recurse -File | Measure-Object Length -Sum).Sum
 $totalSizeGB = [math]::Round($totalSize / 1GB, 2)
 $fileCount = (Get-ChildItem -LiteralPath $DestRoot -Recurse -File | Measure-Object).Count
+$elapsed = $totalStopwatch.Elapsed
+$timeStr = if ($elapsed.TotalMinutes -ge 1) {
+    "{0}m {1}s ({2:N1}s)" -f [int]$elapsed.TotalMinutes, $elapsed.Seconds, $elapsed.TotalSeconds
+} else {
+    "{0:N1} seconds" -f $elapsed.TotalSeconds
+}
 
 Write-Host "`n======================================================================" -ForegroundColor Green
 Write-Host "  SUCCESS: Mada-RAG Portable is 100% ready on your USB drive!         " -ForegroundColor Green
@@ -337,5 +344,6 @@ Write-Host "====================================================================
 Write-Host ("  Target Folder: {0}" -f $DestRoot) -ForegroundColor Cyan
 Write-Host ("  Total Files:   {0} files" -f $fileCount) -ForegroundColor White
 Write-Host ("  Total Size:    {0} GB" -f $totalSizeGB) -ForegroundColor White
+Write-Host ("  Time Elapsed:  {0}" -f $timeStr) -ForegroundColor Cyan
 Write-Host ("  To Run:        Open your USB drive and launch [run-mada-rag.bat]") -ForegroundColor Yellow
 Write-Host "======================================================================" -ForegroundColor Green
