@@ -14,10 +14,14 @@ temporary.mkdir(exist_ok=True)
 os.environ['TEMP'] = os.environ['TMP'] = str(temporary)
 os.environ['PYINSTALLER_CONFIG_DIR'] = str(temporary / 'pyinstaller-cache')
 
+sep = ';' if os.name == 'nt' else ':'
 subprocess.run([
     sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--onefile',
     '--name', 'mada-rag-server', '--distpath', str(ROOT / 'dist'),
     '--workpath', str(ROOT / 'build'), '--specpath', str(ROOT),
+    '--add-data', f'{ROOT / "index.html"}{sep}.',
+    '--add-data', f'{ROOT / "chat.html"}{sep}.',
+    '--add-data', f'{ROOT / "static"}{sep}static',
     str(ROOT / 'frozen_entry.py'),
 ], cwd=ROOT, check=True)
 

@@ -35,6 +35,22 @@ from pypdf import PdfReader
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 ROOT = os.path.dirname(sys.executable if getattr(sys, "frozen", False) else os.path.abspath(__file__))
+
+
+def get_asset_path(rel_path):
+    """يرجع مسار الملف الثابت مع إعطاء الأولوية للمجلد المحلي بجانب التطبيق،
+    أو استخراجه من الحزمة المدمجة (_MEIPASS) عند التشغيل كملف تنفيذي مدمج."""
+    local = os.path.join(ROOT, rel_path)
+    if os.path.isfile(local):
+        return local
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        bundled = os.path.join(meipass, rel_path)
+        if os.path.isfile(bundled):
+            return bundled
+    return local
+
+
 UPLOADS = os.path.join(ROOT, "uploads")
 CHUNKS_PATH = os.path.join(ROOT, "index_data", "chunks.json")
 LOCK = threading.Lock()
@@ -537,6 +553,11 @@ def load_bg_config():
                 data = json.load(f)
             if isinstance(data, dict):
                 out.update(data)
+        else:
+            try:
+                save_bg_config(out)
+            except Exception:
+                pass
     except Exception:
         pass
     return out
@@ -578,17 +599,23 @@ def sanitize_bg(data):
                 except (ValueError, TypeError):
                     pass
     # حفظ موضع النافذة (x, y) في حدود معقولة
-    for pos_k, (min_v, max_v) in (("custom_x", (-200, 3840)), ("custom_y", (-200, 2160))):
-        if pos_k in data:
-            v = data.get(pos_k)
-            if v is None:
-                out[pos_k] = None
-            else:
-                try:
-                    val = int(v)
-                    out[pos_k] = max(min_v, min(max_v, val))
-                except (ValueError, TypeError):
-                    pass
+    pos_explicitly_sent = "position" in data
+    coords_explicitly_sent = ("custom_x" in data or "custom_y" in data)
+    if pos_explicitly_sent and not coords_explicitly_sent:
+        out["custom_x"] = None
+        out["custom_y"] = None
+    else:
+        for pos_k, (min_v, max_v) in (("custom_x", (-200, 3840)), ("custom_y", (-200, 2160))):
+            if pos_k in data:
+                v = data.get(pos_k)
+                if v is None:
+                    out[pos_k] = None
+                else:
+                    try:
+                        val = int(v)
+                        out[pos_k] = max(min_v, min(max_v, val))
+                    except (ValueError, TypeError):
+                        pass
     # حفظ شفافية النافذة في نطاق 0.2–1.0
     if "opacity" in data:
         v = data.get("opacity")
@@ -1966,10 +1993,14 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         u = urlparse(self.path)
         if u.path in ("/", "/index.html"):
-            with open(os.path.join(ROOT, "index.html"), "rb") as f:
-                self._send(200, "text/html; charset=utf-8", f.read())
+            index_path = get_asset_path("index.html")
+            if os.path.isfile(index_path):
+                with open(index_path, "rb") as f:
+                    self._send(200, "text/html; charset=utf-8", f.read())
+            else:
+                self._send(404, "text/plain; charset=utf-8", "واجهة البحث غير متوفرة".encode("utf-8"))
         elif u.path == "/chat":
-            chat_path = os.path.join(ROOT, "chat.html")
+            chat_path = get_asset_path("chat.html")
             if os.path.isfile(chat_path):
                 with open(chat_path, "rb") as f:
                     self._send(200, "text/html; charset=utf-8", f.read())
@@ -1977,7 +2008,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(404, "text/plain; charset=utf-8", "صفحة المحادثة غير متوفرة".encode("utf-8"))
         elif u.path.startswith("/static/"):
             rel_path = u.path[1:].replace("/", os.sep)
-            local_path = os.path.join(ROOT, rel_path)
+            local_path = get_asset_path(rel_path)
             if os.path.isfile(local_path):
                 ctype = "application/octet-stream"
                 if local_path.endswith(".js"): ctype = "application/javascript; charset=utf-8"
@@ -2038,7 +2069,7 @@ class Handler(BaseHTTPRequestHandler):
         elif u.path in ("/projects", "/projects/"):
             accept = self.headers.get("Accept", "")
             if "text/html" in accept:
-                chat_path = os.path.join(ROOT, "chat.html")
+                chat_path = get_asset_path("chat.html")
                 if os.path.isfile(chat_path):
                     with open(chat_path, "rb") as f:
                         self._send(200, "text/html; charset=utf-8", f.read())
@@ -2047,7 +2078,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._json({"ok": True, "projects": list_projects()})
         elif u.path in ("/project", "/project/") or u.path.startswith("/project/"):
-            chat_path = os.path.join(ROOT, "chat.html")
+            chat_path = get_asset_path("chat.html")
             if os.path.isfile(chat_path):
                 with open(chat_path, "rb") as f:
                     self._send(200, "text/html; charset=utf-8", f.read())

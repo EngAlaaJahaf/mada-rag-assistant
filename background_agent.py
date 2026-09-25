@@ -643,19 +643,25 @@ class QuickToast:
         if hasattr(self, "tl"):
             self.tl.config(text="البوب-أب السريع")
         try:
+            self.win.update_idletasks()
             w = max(240, self.win.winfo_width())
             h = max(140, self.win.winfo_height())
-            self._save_custom_size(w, h)
+            x = self.win.winfo_x()
+            y = self.win.winfo_y()
+            self._save_custom_size(w, h, x, y)
         except Exception:
             pass
 
-    def _save_custom_size(self, w, h):
+    def _save_custom_size(self, w, h, x=None, y=None):
         # ── تحديث الإعدادات في الذاكرة ──
         try:
             with self.settings._lock:
                 self.settings.cfg["size"] = "custom"
                 self.settings.cfg["custom_width"] = w
                 self.settings.cfg["custom_height"] = h
+                if x is not None and y is not None:
+                    self.settings.cfg["custom_x"] = x
+                    self.settings.cfg["custom_y"] = y
         except Exception:
             pass
 
@@ -671,19 +677,26 @@ class QuickToast:
                 cfg["size"] = "custom"
                 cfg["custom_width"] = w
                 cfg["custom_height"] = h
+                if x is not None and y is not None:
+                    cfg["custom_x"] = x
+                    cfg["custom_y"] = y
                 with open(cfg_path, "w", encoding="utf-8") as f:
                     json.dump(cfg, f, ensure_ascii=False, indent=2)
-                _log("تم حفظ المقاس المخصص في الملف: %dx%d" % (w, h))
+                _log("تم حفظ المقاس والموضع في الملف: %dx%d @ (%s,%s)" % (w, h, str(x), str(y)))
             except Exception as e:
                 _log("تعذر كتابة المقاس في الملف: " + repr(e)[:80])
 
             # ── مزامنة مع السيرفر (ثانوي) ──
             try:
-                payload = json.dumps({
+                sync_data = {
                     "size": "custom",
                     "custom_width": w,
                     "custom_height": h,
-                }, ensure_ascii=False).encode("utf-8")
+                }
+                if x is not None and y is not None:
+                    sync_data["custom_x"] = x
+                    sync_data["custom_y"] = y
+                payload = json.dumps(sync_data, ensure_ascii=False).encode("utf-8")
                 req = urllib.request.Request(BG_URL, data=payload, headers={"Content-Type": "application/json"})
                 with urllib.request.urlopen(req, timeout=3) as r:
                     pass
@@ -788,8 +801,11 @@ class QuickToast:
         self._move_start_x = event.x_root
         self._move_start_y = event.y_root
         try:
+            self.win.update_idletasks()
             self._move_win_x = self.win.winfo_x()
             self._move_win_y = self.win.winfo_y()
+            self._cur_x = self._move_win_x
+            self._cur_y = self._move_win_y
         except Exception:
             self._moving = False
 
@@ -800,17 +816,25 @@ class QuickToast:
         dy = event.y_root - self._move_start_y
         new_x = self._move_win_x + dx
         new_y = self._move_win_y + dy
+        self._cur_x = new_x
+        self._cur_y = new_y
         try:
             self.win.geometry("+%d+%d" % (new_x, new_y))
         except Exception:
             pass
 
     def _on_move_end(self, event):
+        if not getattr(self, "_moving", False):
+            return
         self._moving = False
-        # حفظ الموضع الجديد في bg_config.json
         try:
-            x = self.win.winfo_x()
-            y = self.win.winfo_y()
+            self.win.update_idletasks()
+            wx = self.win.winfo_x()
+            wy = self.win.winfo_y()
+            cur_x = getattr(self, "_cur_x", wx)
+            cur_y = getattr(self, "_cur_y", wy)
+            x = wx if abs(wx - cur_x) < 50 else cur_x
+            y = wy if abs(wy - cur_y) < 50 else cur_y
             self._save_position(x, y)
         except Exception:
             pass
@@ -824,7 +848,7 @@ class QuickToast:
         except Exception:
             pass
 
-        # كتابة مباشرة في bg_config.json
+        # كتابة مباشرة في bg_config.json ومزامنة مع السيرفر
         def _write():
             try:
                 cfg_path = os.path.join(ROOT, "bg_config.json")
@@ -840,6 +864,15 @@ class QuickToast:
                 _log("تم حفظ موضع النافذة: x=%d, y=%d" % (x, y))
             except Exception as e:
                 _log("تعذر حفظ الموضع: " + repr(e)[:60])
+
+            # مزامنة الموضع مع السيرفر عبر /api/bg
+            try:
+                payload = json.dumps({"custom_x": x, "custom_y": y}, ensure_ascii=False).encode("utf-8")
+                req = urllib.request.Request(BG_URL, data=payload, headers={"Content-Type": "application/json"})
+                with urllib.request.urlopen(req, timeout=3) as r:
+                    pass
+            except Exception:
+                pass
 
         threading.Thread(target=_write, daemon=True).start()
 
