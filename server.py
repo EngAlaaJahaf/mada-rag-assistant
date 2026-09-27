@@ -109,6 +109,12 @@ def init_db():
               created_at TEXT DEFAULT (datetime('now'))
             );
             """)
+            conn.execute("""
+            CREATE TABLE IF NOT EXISTS app_meta(
+              key TEXT PRIMARY KEY,
+              val TEXT
+            );
+            """)
         conn.close()
 
 def list_convs(include_archived=False):
@@ -2699,6 +2705,80 @@ class Handler(BaseHTTPRequestHandler):
                         "chunks": len(CHUNKS)})
 
 
+POSTHOG_API_KEY = "phc_vnyhkaKeSRuCyYEAeeuvnjkhTkehPuJonRY7NbKeJK3p"
+POSTHOG_HOST = "https://us.i.posthog.com"
+
+
+def _send_telemetry_launch():
+    """يرسل إشارة تشغيل خفيفة ومجهولة (Anonymous Telemetry Ping) إلى PostHog
+    لتحديد الدولة وتوزيع المستخدمين، وتفشل بصمت تام إذا كان الجهاز غير متصل بالإنترنت."""
+    if not POSTHOG_API_KEY or os.environ.get("MADA_TELEMETRY", "").lower() in ("0", "false", "no"):
+        return
+    try:
+        import uuid
+        import platform
+        import datetime
+        import urllib.request
+
+        distinct_id = None
+        is_first_launch = False
+        launch_count = 1
+
+        try:
+            with DB_LOCK:
+                conn = get_db()
+                row = conn.execute("SELECT val FROM app_meta WHERE key = 'install_id'").fetchone()
+                if row and row["val"]:
+                    distinct_id = row["val"]
+                else:
+                    distinct_id = str(uuid.uuid4())
+                    conn.execute("INSERT OR REPLACE INTO app_meta (key, val) VALUES ('install_id', ?)", (distinct_id,))
+                    is_first_launch = True
+
+                lc_row = conn.execute("SELECT val FROM app_meta WHERE key = 'launch_count'").fetchone()
+                if lc_row and lc_row["val"]:
+                    try:
+                        launch_count = int(lc_row["val"]) + 1
+                    except Exception:
+                        launch_count = 1
+                conn.execute("INSERT OR REPLACE INTO app_meta (key, val) VALUES ('launch_count', ?)", (str(launch_count),))
+                conn.commit()
+                conn.close()
+        except Exception:
+            distinct_id = distinct_id or str(uuid.uuid4())
+
+        payload = {
+            "api_key": POSTHOG_API_KEY,
+            "event": "app_launch",
+            "distinct_id": distinct_id,
+            "properties": {
+                "$os": platform.system(),
+                "$os_version": platform.version(),
+                "app_name": "Mada-RAG Assistant",
+                "app_version": "1.0",
+                "is_first_launch": is_first_launch,
+                "launch_count": launch_count,
+                "has_local_model": generation_available(),
+                "has_ocr_plugin": ocr_available()
+            },
+            "timestamp": datetime.datetime.utcnow().isoformat() + "Z"
+        }
+
+        req = urllib.request.Request(
+            f"{POSTHOG_HOST}/capture/",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "User-Agent": "mada-rag-assistant/1.0"
+            },
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=3.5):
+            pass
+    except Exception:
+        pass
+
+
 def main():
     init_db()
     os.makedirs(UPLOADS, exist_ok=True)
@@ -2724,6 +2804,7 @@ def main():
     print(f"التوليد المحلي: {gens}")
     print(f"استخراج نصوص الصور (OCR): {ocrs}")
     threading.Thread(target=_watchdog_loop, daemon=True).start()
+    threading.Thread(target=_send_telemetry_launch, daemon=True).start()
     start_background_agent()
     try:
         import webbrowser
