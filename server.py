@@ -1058,10 +1058,11 @@ def llm_failure_message():
 
 
 # ── البوب-أب السريع (Quick Popup): توليد موجز + محادثة «سريع» ──
+MATH_HINT = " إذا تضمنت الإجابة معادلات رياضية أو علمية فاكتبها بصيغة LaTeX واضحة (مثل $$E = mc^2$$ للكتل أو $x = a + b$ داخل السطر) ليتم عرضها وتنسيقها بدقة."
 QUICK_PROMPTS = {
-    "short": "أجب بإجابة صحيحة وموجزة جداً بالعربية في جملة أو جملتين فقط.",
-    "medium": "أجب بإجابة صحيحة وواضحة بالعربية في فقرة قصيرة من جملتين إلى ثلاث جمل.",
-    "detailed": "أجب بإجابة صحيحة ومفصلة بالعربية مع الشرح الكافي دون إطالة مفرطة.",
+    "short": "أجب بإجابة صحيحة وموجزة جداً بالعربية في جملة أو جملتين فقط." + MATH_HINT,
+    "medium": "أجب بإجابة صحيحة وواضحة بالعربية في فقرة قصيرة من جملتين إلى ثلاث جمل." + MATH_HINT,
+    "detailed": "أجب بإجابة صحيحة ومفصلة بالعربية مع الشرح الكافي دون إطالة مفرطة." + MATH_HINT,
 }
 
 
@@ -1081,6 +1082,27 @@ def quick_generate(text):
     try:
         system, mt = quick_system_prompt()
         messages = [{"role": "system", "content": system}, {"role": "user", "content": q}]
+
+        # إذا كانت هناك ملفات مفهرسة والبحث وجد سياقاً وثيق الصلة، نفعّل RAG تلقائياً للبوب-أب السريع
+        cfg = load_bg_config()
+        has_custom = bool((cfg.get("custom_command") or "").strip())
+        if CHUNKS and not has_custom:
+            try:
+                results = search_dual(q, top_n=8)
+                if results and any(r.get("score", 0) >= 20.0 for r in results):
+                    rag_sources = build_rag_sources(results, max_total_chars=5000)
+                    if rag_sources.strip():
+                        rag_system = (
+                            "أنت مساعد ذكي وسريع. إذا كان السؤال متعلقاً بالمصادر المرفقة داخل <sources> فأجب بدقة واذكر اسم الملف ورقم الصفحة/الشريحة باختصار. "
+                            "وإذا كان السؤال عاماً أو علمياً لا تتناوله المصادر، فأجب عنه مباشرة بدقة وإيجاز شديدين دون ذكر أن المصادر خالية. "
+                            "إذا تضمنت الإجابة معادلات رياضية أو علمية فاكتبها بصيغة LaTeX واضحة ($$..$$ أو $..$)."
+                        )
+                        user_prompt = f"<sources>\n{rag_sources}\n</sources>\n\nالسؤال: {q}"
+                        messages = [{"role": "system", "content": rag_system}, {"role": "user", "content": user_prompt}]
+                        mt = max(mt, 400)
+            except Exception:
+                pass
+
         parts = list(stream_llm(messages, temperature=0.2, max_tokens=mt))
         ans = "".join(parts).strip()
         if not ans:
@@ -1859,8 +1881,60 @@ def translate_query(q):
     return translate_text(q, "ar2en") or ""
 
 
-def search_dual(q, top_n=6, target_file=None, target_files=None):
-    """إن كان السؤال عربياً والملفات إنجليزية: نترجم السؤال ونبحث به أيضاً."""
+_QUERY_EXPANSION_CACHE = {}
+
+
+def expand_query_academic(q):
+    """
+    استخراج وتوسيع ذكي للمصطلحات الأكاديمية بالإنجليزية باستخدام النموذج اللغوي المحلي.
+    يعمل بشكل عام وشامل على جميع العلوم والتخصصات (حاسوب، طب، هندسة، قانون، اقتصاد، وغيرها) دون أي تحيز.
+    """
+    if not q or not has_arabic(q):
+        return ""
+    q_norm = q.strip().lower()
+    if q_norm in _QUERY_EXPANSION_CACHE:
+        return _QUERY_EXPANSION_CACHE[q_norm]
+
+    if not _llm_alive():
+        return ""
+
+    try:
+        req = urllib.request.Request(
+            f"http://{LLM_HOST}:{LLM_PORT}/v1/chat/completions",
+            headers={"Content-Type": "application/json"},
+            data=json.dumps({
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are an academic search keyword extractor for university lecture materials and textbooks across all disciplines (computing, medicine, science, business, engineering, law). "
+                            "Translate and expand the user question into 2-4 standard English academic search terms. "
+                            "Important disambiguation: in computing, electronics, physics and media, تناظري / تمثيلي = analog (contrasting digital/رقمي). "
+                            "Output ONLY standard English search terms separated by commas, nothing else."
+                        )
+                    },
+                    {"role": "user", "content": q}
+                ],
+                "max_tokens": 30,
+                "temperature": 0.1
+            }).encode("utf-8")
+        )
+        with urllib.request.urlopen(req, timeout=1.8) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+            content = re.sub(r"[`*_\n]", " ", content).strip()
+            if content:
+                if len(_QUERY_EXPANSION_CACHE) > 500:
+                    _QUERY_EXPANSION_CACHE.clear()
+                _QUERY_EXPANSION_CACHE[q_norm] = content
+                return content
+    except Exception:
+        pass
+    return ""
+
+
+def search_dual(q, top_n=8, target_file=None, target_files=None):
+    """إن كان السؤال عربياً والملفات إنجليزية: نترجم السؤال ونبحث به أيضاً بجانب المصطلحات الأكاديمية الذكية."""
     t_files = _normalize_target_files(target_file, target_files)
     if not has_arabic(q):
         return search(q, top_n, target_files=t_files)
@@ -1868,6 +1942,16 @@ def search_dual(q, top_n=6, target_file=None, target_files=None):
     for sc, i in _scores(q, target_files=t_files):
         if sc > (merged.get(i, (0, 0))[0]):
             merged[i] = (sc, i)
+
+    # استخراج الكلمات المفتاحية الأكاديمية الذكية بالذكاء الاصطناعي
+    ai_kw = expand_query_academic(q)
+    if ai_kw:
+        for term in [ai_kw] + [t.strip() for t in ai_kw.split(",") if t.strip()]:
+            for sc, i in _scores(term, target_files=t_files):
+                weighted_sc = sc * 1.15
+                if weighted_sc > (merged.get(i, (0, 0))[0]):
+                    merged[i] = (weighted_sc, i)
+
     qen = translate_query(q).strip()
     if qen:
         for sc, i in _scores(qen, target_files=t_files):

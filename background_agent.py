@@ -8,6 +8,7 @@ import os
 import sys
 import time
 import json
+import re
 import queue
 import threading
 import urllib.request
@@ -343,12 +344,169 @@ def post_quick(text, settings):
 
 # ── نافذة التوست (tkinter) ──
 import tkinter as tk
+import tkinter.font as tkfont
 
 COLORS_DARK = {"bg": "#151d2c", "card": "#1d2739", "fg": "#e8ecf5",
                "muted": "#9aa7c4", "accent": "#4f8cff", "err": "#ff6b5e"}
 COLORS_LIGHT = {"bg": "#ffffff", "card": "#f4f6fb", "fg": "#1c2333",
                 "muted": "#6b7790", "accent": "#2f6bff", "err": "#e55345"}
 SIZES = {"small": 300, "medium": 420, "wide": 560}
+
+# ── محرك تنسيق وعرض المعادلات الرياضية في البوب-أب السريع (LaTeX to Unicode Math) ──
+GREEK_LETTERS = {
+    "alpha": "α", "beta": "β", "gamma": "γ", "delta": "δ", "epsilon": "ε",
+    "varepsilon": "ε", "zeta": "ζ", "eta": "η", "theta": "θ", "vartheta": "θ",
+    "iota": "ι", "kappa": "κ", "lambda": "λ", "mu": "μ", "nu": "ν",
+    "xi": "ξ", "pi": "π", "varpi": "π", "rho": "ρ", "varrho": "ρ",
+    "sigma": "σ", "varsigma": "σ", "tau": "τ", "upsilon": "υ", "phi": "φ",
+    "varphi": "φ", "chi": "χ", "psi": "ψ", "omega": "ω",
+    "Gamma": "Γ", "Delta": "Δ", "Theta": "Θ", "Lambda": "Λ", "Xi": "Ξ",
+    "Pi": "Π", "Sigma": "Σ", "Upsilon": "Υ", "Phi": "Φ", "Psi": "Ψ", "Omega": "Ω"
+}
+
+MATH_SYMBOLS = {
+    "pm": "±", "mp": "∓", "times": "×", "cdot": "·", "div": "÷",
+    "neq": "≠", "ne": "≠", "leq": "≤", "le": "≤", "geq": "≥", "ge": "≥",
+    "ll": "≪", "gg": "≫", "approx": "≈", "sim": "∼", "equiv": "≡",
+    "propto": "∝", "infty": "∞", "partial": "∂", "nabla": "∇", "hbar": "ℏ",
+    "degree": "°", "circ": "°", "in": "∈", "notin": "∉", "subset": "⊂", "subseteq": "⊆",
+    "cup": "∪", "cap": "∩", "to": "→", "rightarrow": "→", "leftarrow": "←",
+    "leftrightarrow": "↔", "Rightarrow": "⇒", "Leftarrow": "⇐", "Leftrightarrow": "⇔",
+    "forall": "∀", "exists": "∃", "neg": "¬", "land": "∧", "lor": "∨",
+    "perp": "⊥", "sum": "∑", "prod": "∏", "int": "∫", "iint": "∬", "oint": "∮",
+    "quad": "  ", "qquad": "    "
+}
+
+SUP_MAP = str.maketrans("0123456789+-=()nixyabcdehmprst", "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸᵃᵇᶜᵈᵉʰᵐᵖʳˢᵗ")
+SUB_MAP = str.maketrans("0123456789+-=()aehijklmnoprstuvx", "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₕᵢⱼₖₗₘₙₒₚᵣₛₜᵤᵥₓ")
+
+
+def to_sup(s):
+    return s.translate(SUP_MAP)
+
+
+def to_sub(s):
+    return s.translate(SUB_MAP)
+
+
+def extract_braced(s, start_idx):
+    if start_idx >= len(s) or s[start_idx] != "{":
+        return None, start_idx
+    depth, content = 0, []
+    for i in range(start_idx, len(s)):
+        if s[i] == "{":
+            depth += 1
+            if depth > 1:
+                content.append("{")
+        elif s[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return "".join(content), i + 1
+            else:
+                content.append("}")
+        else:
+            content.append(s[i])
+    return None, start_idx
+
+
+FRACS_UNICODE = {
+    "1/2": "½", "1/4": "¼", "3/4": "¾", "1/3": "⅓", "2/3": "⅔", "1/8": "⅛"
+}
+
+
+def replace_fracs(s):
+    while True:
+        idx = s.find(r"\frac")
+        if idx == -1:
+            break
+        p = idx + 5
+        while p < len(s) and s[p].isspace():
+            p += 1
+        num, p2 = extract_braced(s, p)
+        if num is None:
+            break
+        while p2 < len(s) and s[p2].isspace():
+            p2 += 1
+        den, p3 = extract_braced(s, p2)
+        if den is None:
+            break
+        num_clean = latex_to_pretty(num.strip())
+        den_clean = latex_to_pretty(den.strip())
+        simple_fraction = f"{num_clean}/{den_clean}"
+        if simple_fraction in FRACS_UNICODE:
+            rep = FRACS_UNICODE[simple_fraction]
+        else:
+            if " " in num_clean and not (num_clean.startswith("(") and num_clean.endswith(")")):
+                num_clean = f"({num_clean})"
+            if " " in den_clean and not (den_clean.startswith("(") and den_clean.endswith(")")):
+                den_clean = f"({den_clean})"
+            rep = f"{num_clean} / {den_clean}"
+        s = s[:idx] + rep + s[p3:]
+    return s
+
+
+def latex_to_pretty(expr):
+    if not expr:
+        return ""
+    s = expr.strip()
+    s = re.sub(r"\\left\b|\\right\b", "", s)
+    s = re.sub(r"\\(?:text|mathrm|mathbf|mathit)\{([^}]*)\}", r"\1", s)
+    s = re.sub(r"\\(?:vec|overline|hat|tilde)\{([^}]*)\}", r"\1", s)
+    s = re.sub(r"\\(sin|cos|tan|cot|sec|csc|sinh|cosh|tanh|arcsin|arccos|arctan|log|ln|exp|lim|max|min|det|gcd|deg)(?![a-zA-Z])", r"\1", s)
+    s = re.sub(r"\\sqrt\[(\d+)\]\{([^}]*)\}", lambda m: f"{to_sup(m.group(1))}√({latex_to_pretty(m.group(2))})", s)
+    s = re.sub(r"\\sqrt\{([^}]*)\}", lambda m: f"√({latex_to_pretty(m.group(1))})", s)
+    s = replace_fracs(s)
+    for k, v in sorted(GREEK_LETTERS.items(), key=lambda x: -len(x[0])):
+        s = re.sub(r"\\" + k + r"(?![a-zA-Z])", v, s)
+    for k, v in sorted(MATH_SYMBOLS.items(), key=lambda x: -len(x[0])):
+        s = re.sub(r"\\" + k + r"(?![a-zA-Z])", v, s)
+    s = re.sub(r"\^\{([^{}]+)\}", lambda m: to_sup(m.group(1)), s)
+    s = re.sub(r"\^([0-9a-zA-Z+-])", lambda m: to_sup(m.group(1)), s)
+    s = re.sub(r"_\{([^{}]+)\}", lambda m: to_sub(m.group(1)), s)
+    s = re.sub(r"_([0-9a-zA-Z+-])", lambda m: to_sub(m.group(1)), s)
+    s = s.replace(r"\{", "{").replace(r"\}", "}")
+    s = re.sub(r"\\[a-zA-Z]+", "", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def parse_math_and_markdown(text):
+    """
+    يحلل النص ويفصل المعادلات الرياضية (كتل منفصلة وداخل السطر)
+    والنصوص العادية مع الحفاظ على تسلسل العرض.
+    """
+    pattern_block = re.compile(
+        r"\$\$(.*?)\$\$|\\\[(.*?)\\\]|\\begin\{(?:equation|align|gather)\*?\}(.*?)\\end\{(?:equation|align|gather)\*?\}",
+        re.DOTALL
+    )
+    pattern_inline = re.compile(r"\$([^$\n]+)\$|\\\((.*?)\\\)")
+    segments, last_end = [], 0
+    for m in pattern_block.finditer(text):
+        pre = text[last_end:m.start()]
+        if pre:
+            segments.append(("text", pre))
+        mc = m.group(1) or m.group(2) or m.group(3) or ""
+        segments.append(("math_block", latex_to_pretty(mc)))
+        last_end = m.end()
+    rest = text[last_end:]
+    if rest:
+        segments.append(("text", rest))
+    final = []
+    for kind, content in segments:
+        if kind == "math_block":
+            final.append((kind, content))
+        else:
+            sub_last = 0
+            for im in pattern_inline.finditer(content):
+                sub_pre = content[sub_last:im.start()]
+                if sub_pre:
+                    final.append(("text", sub_pre))
+                ic = im.group(1) or im.group(2) or ""
+                final.append(("math_inline", latex_to_pretty(ic)))
+                sub_last = im.end()
+            sub_rest = content[sub_last:]
+            if sub_rest:
+                final.append(("text", sub_rest))
+    return final
 
 
 class QuickToast:
@@ -467,7 +625,7 @@ class QuickToast:
         self.btn_copy = tk.Label(self.head, text="نسخ", fg=self.c["fg"], bg=self.c["card"],
                                  cursor="hand2", font=("Segoe UI", 9))
         self.btn_copy.pack(side="right", padx=(0, 8))
-        self.btn_copy.bind("<Button-1>", lambda e: self._do_copy(answer))
+        self.btn_copy.bind("<Button-1>", lambda e: self._do_copy(getattr(self, "clean_answer", answer)))
         self.btn_copy.bind("<Enter>", lambda e: self.btn_copy.config(fg=self.c["accent"]))
         self.btn_copy.bind("<Leave>", lambda e: self.btn_copy.config(fg=self.c["fg"]))
 
@@ -515,7 +673,8 @@ class QuickToast:
                             font=("Segoe UI", 11), wrap="word", height=6, padx=10, pady=8,
                             cursor="arrow", highlightthickness=0, borderwidth=0)
         self.body.pack(fill="both", expand=True)
-        self.body.insert("1.0", answer)
+        self._setup_tags()
+        self.clean_answer = self._render_content(answer)
         self.body.configure(state="disabled")
 
         self.win.bind("<Enter>", lambda e: self._set_pause(True))
@@ -755,6 +914,7 @@ class QuickToast:
                 self.btn_close.configure(bg=self.c["card"], fg=self.c["err"])
             if hasattr(self, "body"):
                 self.body.configure(bg=self.c["card"], fg=self.c["fg"])
+                self._setup_tags()
             if hasattr(self, "_bar"):
                 self._bar.configure(bg=self.c["bg"])
                 frac = max(0.0, self._remaining / max(0.1, self.duration))
@@ -964,6 +1124,99 @@ class QuickToast:
 
         if self.on_copy:
             self.on_copy()
+
+    def _setup_tags(self):
+        try:
+            fams = tkfont.families()
+            math_family = "Cambria Math" if "Cambria Math" in fams else ("Segoe UI Symbol" if "Segoe UI Symbol" in fams else "Segoe UI")
+            is_dark = getattr(self, "color", "dark") == "dark"
+            math_fg = "#38bdf8" if is_dark else "#0284c7"
+            math_bg = "#162032" if is_dark else "#e9eff8"
+            code_bg = "#111827" if is_dark else "#e2e8f0"
+            code_fg = "#a5f3fc" if is_dark else "#0369a1"
+
+            self.body.tag_configure("math_block",
+                                    font=(math_family, 12, "bold"),
+                                    foreground=math_fg,
+                                    background=math_bg,
+                                    justify="center",
+                                    spacing1=6,
+                                    spacing3=6)
+            self.body.tag_configure("math_inline",
+                                    font=(math_family, 11, "bold"),
+                                    foreground=math_fg)
+            self.body.tag_configure("bold",
+                                    font=("Segoe UI", 11, "bold"),
+                                    foreground=self.c["fg"])
+            self.body.tag_configure("code",
+                                    font=("Consolas", 10),
+                                    background=code_bg,
+                                    foreground=code_fg)
+            self.body.tag_configure("heading",
+                                    font=("Segoe UI", 12, "bold"),
+                                    foreground=self.c["accent"],
+                                    spacing1=4,
+                                    spacing3=2)
+            self.body.tag_configure("normal",
+                                    font=("Segoe UI", 11),
+                                    foreground=self.c["fg"])
+        except Exception:
+            pass
+
+    def _render_content(self, raw_text):
+        clean_parts = []
+        try:
+            segments = parse_math_and_markdown(raw_text)
+            for kind, content in segments:
+                if not content:
+                    continue
+                if kind == "math_block":
+                    cur_text = self.body.get("1.0", "end-1c")
+                    if cur_text and not cur_text.endswith("\n"):
+                        self.body.insert("end", "\n")
+                        clean_parts.append("\n")
+                    eq_line = f"  {content}  \n"
+                    self.body.insert("end", eq_line, ("math_block",))
+                    clean_parts.append(eq_line)
+                elif kind == "math_inline":
+                    self.body.insert("end", content, ("math_inline",))
+                    clean_parts.append(content)
+                else:
+                    self._render_text_segment(content, clean_parts)
+        except Exception:
+            self.body.insert("end", raw_text)
+            return raw_text
+        return "".join(clean_parts)
+
+    def _render_text_segment(self, text, clean_parts):
+        p = re.compile(r'(\*\*.*?\*\*|`.*?`|^#{1,3}\s+.*$)', re.MULTILINE)
+        last = 0
+        for m in p.finditer(text):
+            if m.start() > last:
+                chunk = text[last:m.start()]
+                self.body.insert("end", chunk, ("normal",))
+                clean_parts.append(chunk)
+            val = m.group(0)
+            if val.startswith("**") and val.endswith("**") and len(val) >= 4:
+                bold_txt = val[2:-2]
+                self.body.insert("end", bold_txt, ("bold",))
+                clean_parts.append(bold_txt)
+            elif val.startswith("`") and val.endswith("`") and len(val) >= 2:
+                code_txt = val[1:-1]
+                self.body.insert("end", code_txt, ("code",))
+                clean_parts.append(code_txt)
+            elif val.startswith("#"):
+                head_txt = re.sub(r"^#+\s*", "", val) + "\n"
+                self.body.insert("end", head_txt, ("heading",))
+                clean_parts.append(head_txt)
+            else:
+                self.body.insert("end", val, ("normal",))
+                clean_parts.append(val)
+            last = m.end()
+        if last < len(text):
+            rest = text[last:]
+            self.body.insert("end", rest, ("normal",))
+            clean_parts.append(rest)
 
     def exit(self):
         self._cancel = True
